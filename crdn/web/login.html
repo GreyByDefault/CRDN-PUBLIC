@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><title>Вход — CRDN</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico"><link rel="stylesheet" href="/auth.css"><script src="/auth.js" defer></script>
+</head><body class="auth-login">
+<main class="login-shell"><div class="login-brand">NEUROFLO / SERVER MONITOR</div>
+<h1>CRDN<span>.</span></h1><p class="login-intro">Войдите в панель мониторинга</p>
+<form id="login-form" class="auth-form">
+<label>Логин<input name="username" autocomplete="username" required maxlength="64" autofocus></label>
+<label>Пароль<span class="password-field"><input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="256"><button type="button" id="toggle-password" aria-controls="login-password" aria-pressed="false">Показать</button></span></label>
+<p id="login-error" class="auth-error" role="alert"></p>
+<button type="submit" class="auth-primary">Войти</button>
+</form><noscript>Для входа включите JavaScript.</noscript></main>
+</body></html>

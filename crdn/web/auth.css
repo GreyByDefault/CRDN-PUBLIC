@@ -1,0 +1,28 @@
+:root { color-scheme: dark; }
+.auth-login { margin: 0; background: #171a1d; color: #ecf1f2; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; box-sizing: border-box; }
+.login-shell { box-sizing: border-box; width: 100%; max-width: 390px; padding: 32px; background: #202529; border: 1px solid #344046; border-radius: 18px; }
+.login-brand { color: #65d7c5; letter-spacing: .1em; font-size: 10px; }
+.login-shell h1 { margin: 12px 0; font-size: 38px; letter-spacing: -.05em; }
+.login-shell h1 span { color: #65d7c5; }
+.login-intro { margin: 0 0 28px; color: #a0adb2; font-size: 14px; }
+.auth-form { display: grid; gap: 18px; }
+.auth-form label { display: grid; gap: 8px; font-size: 13px; color: #c3ced1; }
+.auth-form input { box-sizing: border-box; display: block; width: 100%; min-width: 0; font: inherit; font-size: 16px; padding: 11px 12px; color: #ecf1f2; background: #171a1d; border: 1px solid #45545c; border-radius: 8px; }
+.auth-form input:focus { outline: 2px solid #65d7c5; outline-offset: 2px; }
+.password-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.auth-form button, .auth-button, .auth-dialog button { font: inherit; font-size: 13px; border: 1px solid #45545c; border-radius: 8px; padding: 10px 12px; background: #263036; color: #ecf1f2; cursor: pointer; }
+.auth-form button:focus-visible, .auth-button:focus-visible, .auth-dialog button:focus-visible { outline: 2px solid #65d7c5; outline-offset: 2px; }
+.auth-form .auth-primary, .auth-dialog .auth-primary { background: #65d7c5; color: #152521; border-color: #65d7c5; font-weight: 600; }
+.auth-form button:disabled { opacity: .6; cursor: wait; }
+.auth-error { margin: 0; min-height: 1.4em; color: #edbd8a; font-size: 13px; line-height: 1.4; }
+.header-actions { display: flex; gap: 18px; align-items: center; }
+.account-actions { display: flex; gap: 8px; }
+.auth-button { font-size: 12px; padding: 8px 10px; }
+.auth-dialog { box-sizing: border-box; width: min(440px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 28px; color: #ecf1f2; background: #202529; border: 1px solid #45545c; border-radius: 16px; font-family: system-ui, sans-serif; }
+.auth-dialog::backdrop { background: rgb(0 0 0 / .65); }
+.auth-dialog h2 { display: block; margin: 0 30px 16px 0; font-size: 20px; }
+.auth-dialog p { font-size: 14px; line-height: 1.6; }
+.auth-dialog .auth-close { position: absolute; top: 14px; right: 14px; padding: 3px 9px; background: transparent; font-size: 20px; }
+.auth-dialog .auth-controls { display: flex; justify-content: flex-end; gap: 10px; }
+.auth-dialog .auth-hint { color: #a0adb2; font-size: 12px; margin: 0; }
+@media (max-width: 700px) { .header-actions { flex-wrap: wrap; gap: 12px; } .login-shell { padding: 26px 22px; } }

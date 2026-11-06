@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+ <meta name="color-scheme" content="dark"><title>CRDN — Server Monitor</title>
+ <link rel="icon" type="image/x-icon" href="/favicon.ico"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/auth.css"><script src="/auth.js" defer></script><script src="/app.js" defer></script>
+</head>
+<body><main>
+ <header class="page-header"><div class="identity"><h1>CRDN<span>.</span></h1><div class="brand">NEUROFLO<span>SERVER MONITOR</span></div></div>
+ <div class="header-actions"><div class="connection"><p id="connection" role="status" data-state="waiting">Подключение…</p><span id="updated">Ожидание первого снимка</span></div><div class="account-actions"><button id="account-button" class="auth-button" type="button">Учётная запись</button><button id="logout-button" class="auth-button" type="button">Выйти</button></div></div></header>
+ <div class="dashboard">
+ <section class="card cpu-card" aria-labelledby="cpu-title">
+  <header class="card-header"><h2 id="cpu-title"><span class="card-symbol" aria-hidden="true">◎</span>CPU</h2><span>Процессор</span></header>
+  <div class="metric-summary"><div class="dial" id="cpu-meter" role="img" aria-label="Загрузка: нет данных" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет данных">
+  <svg viewBox="0 0 160 160" aria-hidden="true"><circle class="dial-track" cx="80" cy="80" r="68"/><circle id="cpu-arc" class="dial-arc" cx="80" cy="80" r="68" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" hidden/></svg>
+  <div class="dial-center"><strong id="cpu-value">—</strong><span>Загрузка</span></div>
+ </div><dl class="details"><div><dt>Средняя за 5 мин</dt><dd id="cpu-average">—</dd></div><div><dt>Максимум за 5 мин</dt><dd id="cpu-maximum">—</dd></div><div><dt>Минимум за 5 мин</dt><dd id="cpu-minimum">—</dd></div></dl></div>
+  <div class="history-block"><div class="plot-heading"><span>История загрузки</span><span id="cpu-range">Нет данных</span></div>
+ <svg id="cpu-chart" class="chart spark" viewBox="0 0 600 120" preserveAspectRatio="none" role="img" aria-label="История загрузки за последние пять минут"></svg>
+ <div class="time-axis"><span>−5 мин</span><span>Сейчас</span></div></div>
+ </section>
+ <section class="card ram-card" aria-labelledby="ram-title">
+  <header class="card-header"><h2 id="ram-title"><span class="card-symbol" aria-hidden="true">▤</span>RAM</h2><span>Оперативная память</span></header>
+  <div class="metric-summary"><div class="dial" id="ram-meter" role="img" aria-label="Использовано: нет данных" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет данных">
+  <svg viewBox="0 0 160 160" aria-hidden="true"><circle class="dial-track" cx="80" cy="80" r="68"/><circle id="ram-arc" class="dial-arc" cx="80" cy="80" r="68" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" hidden/></svg>
+  <div class="dial-center"><strong id="ram-value">—</strong><span>Использовано</span></div>
+ </div><dl class="details"><div><dt>Общий объём</dt><dd id="ram-total">—</dd></div><div><dt><i class="key used"></i>Занято</dt><dd id="ram-used">—</dd></div><div><dt><i class="key free"></i>Доступно</dt><dd id="ram-available">—</dd></div></dl></div>
+  <div class="history-block"><div class="plot-heading"><span>История использования</span><span id="ram-range">Нет данных</span></div>
+ <svg id="ram-chart" class="chart spark" viewBox="0 0 600 120" preserveAspectRatio="none" role="img" aria-label="История использования за последние пять минут"></svg>
+ <div class="time-axis"><span>−5 мин</span><span>Сейчас</span></div></div>
+ </section>
+ <section class="card disk-card" aria-labelledby="disk-title">
+  <header class="card-header"><h2 id="disk-title"><span class="card-symbol" aria-hidden="true">◴</span>Disk</h2><span>Файловая система /</span></header>
+  <div class="metric-summary disk-summary"><div class="dial" id="disk-meter" role="img" aria-label="Заполнено: нет данных" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Нет данных">
+  <svg viewBox="0 0 160 160" aria-hidden="true"><circle class="dial-track" cx="80" cy="80" r="68"/><circle id="disk-arc" class="dial-arc" cx="80" cy="80" r="68" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" hidden/></svg>
+  <div class="dial-center"><strong id="disk-value">—</strong><span>Заполнено</span></div>
+ </div><dl class="details"><div><dt>Общий объём</dt><dd id="disk-total">—</dd></div><div><dt><i class="key used"></i>Занято</dt><dd id="disk-used">—</dd></div><div><dt><i class="key free"></i>Свободно</dt><dd id="disk-free">—</dd></div></dl></div>
+  <div class="disk-note"><span>Доступно пользователю <strong id="disk-available">—</strong></span><span>Свободное место включает резерв системы</span></div>
+ </section>
+ <section class="card network-card" aria-labelledby="network-title">
+  <header class="card-header"><h2 id="network-title"><span class="card-symbol" aria-hidden="true">⇄</span>Network</h2><span id="network-interface">Интерфейс —</span></header>
+  <div class="network-values"><div><span class="direction rx">↓ Входящий</span><strong id="network-rx">—</strong></div><div><span class="direction tx">↑ Исходящий</span><strong id="network-tx">—</strong></div></div>
+  <div class="network-plot"><div class="y-axis" aria-label="Шкала скорости"><span id="net-max">—</span><span id="net-mid">—</span><span id="net-zero">—</span></div>
+   <svg id="network-chart" class="chart" viewBox="0 0 600 120" preserveAspectRatio="none" role="img" aria-label="Входящая и исходящая скорость за последние пять минут"></svg>
+   <div class="time-axis"><span>−5 мин</span><span>−2,5 мин</span><span>Сейчас</span></div>
+  </div>
+  <div class="tcp"><span>Установленные TCP-соединения</span><strong id="network-tcp">—</strong></div>
+ </section>
+ </div>
+ <footer><span>Локальный мониторинг · обновление ≈ 2 с</span><span>История 5 минут · только наблюдение</span></footer>
+ <noscript>Для получения показателей включите JavaScript в браузере.</noscript>
+</main></body></html>

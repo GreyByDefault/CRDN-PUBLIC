@@ -1,0 +1,41 @@
+name: Deploy CRDN
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: crdn-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.repository == 'GreyByDefault/CRDN-PUBLIC' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate and package committed runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git show --format= --check HEAD
+          bash -n ops/ssh-deploy.sh
+          python3 ops/package.py "$RUNNER_TEMP/crdn-runtime.tar"
+      - name: Publish isolated CRDN release
+        shell: bash
+        env:
+          CRDN_DEPLOY_SSH_KEY: ${{ secrets.CRDN_DEPLOY_SSH_KEY }}
+          CRDN_DEPLOY_HOST: ${{ secrets.CRDN_DEPLOY_HOST }}
+          CRDN_DEPLOY_USER: ${{ secrets.CRDN_DEPLOY_USER }}
+          CRDN_DEPLOY_KNOWN_HOSTS: ${{ secrets.CRDN_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          bash ops/ssh-deploy.sh check
+          bash ops/ssh-deploy.sh upload < "$RUNNER_TEMP/crdn-runtime.tar"
+          bash ops/ssh-deploy.sh deploy
