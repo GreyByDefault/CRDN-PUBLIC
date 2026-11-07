@@ -134,18 +134,22 @@ def source(args):
         raw = Path(args.test_archive).read_bytes()
         expected = args.test_sha256
     else:
+        selected = getattr(args, 'release', None)
+        if selected and not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?', selected):
+            raise ValueError('Expected an exact release tag, for example v1.0.0-rc.1')
+        endpoint = 'tags/' + selected if selected else 'latest'
         try:
-            release = json.loads(download('https://api.github.com/repos/GreyByDefault/CRDN-PUBLIC/releases/latest'))
+            release = json.loads(download('https://api.github.com/repos/GreyByDefault/CRDN-PUBLIC/releases/' + endpoint))
         except HTTPError as error:
             if error.code == 404:
-                raise ValueError('No stable CRDN release is available. Pre-releases and master are never installed.') from error
+                raise ValueError('Requested CRDN release not found.' if selected else 'No stable CRDN release is available. Use --release v1.0.0-rc.1 explicitly to accept the preliminary release; master is never installed.') from error
             raise
-        if release.get('draft') or release.get('prerelease') or not re.fullmatch(r'v\d+\.\d+\.\d+', release['tag_name']):
-            raise ValueError('Invalid stable release metadata')
+        if release.get('draft') or (not selected and (release.get('prerelease') or not re.fullmatch(r'v\d+\.\d+\.\d+', release['tag_name']))) or (selected and release['tag_name'] != selected) or not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?', release['tag_name']):
+            raise ValueError('Invalid GitHub Release metadata')
         assets = {a['name']: a['browser_download_url'] for a in release['assets']}
         name = 'crdn-' + release['tag_name'] + '.tar'
         if name not in assets or name + '.sha256' not in assets:
-            raise ValueError('Stable release has no runtime archive/checksum')
+            raise ValueError('Selected release has no runtime archive/checksum')
         prefix = 'https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/' + release['tag_name'] + '/'
         if any(not assets[n].startswith(prefix) for n in (name, name + '.sha256')):
             raise ValueError('Unexpected asset source')
@@ -587,11 +591,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=('install', 'update', 'uninstall', 'recover'))
     parser.add_argument('--domain')
+    parser.add_argument('--release', help='Explicit GitHub Release tag; permits this exact Pre-release only')
     parser.add_argument('--recover', action='store_true', help='Recover interrupted operation before retry')
     parser.add_argument('--test-archive', help='Explicit local runtime fixture; never selected automatically')
     parser.add_argument('--test-sha256')
     parser.add_argument('--acme-staging', action='store_true')
     args = parser.parse_args()
+    if args.release and args.test_archive:
+        parser.error('--release cannot be combined with --test-archive')
     if args.recover:
         args.operation = 'recover'
     platform_check()

@@ -8,9 +8,9 @@ A lightweight NEUROFLO Linux server dashboard: CPU, RAM, root disk and network. 
 
 ## Status
 
-Published v0.1.0 remains a Pre-release without installation assets. Lifecycle scripts are implemented in source; stable v1.0.0 has not been released. Normal installation reports the absence of a stable release and never uses master or a Pre-release.
+**v1.0.0-rc.1 is a preliminary installation release (Pre-release); the installer is undergoing acceptance testing.** Stable v1.0.0 has not been published. Installation defaults to stable Releases only; the command below explicitly selects rc.1. The application is never downloaded from master.
 
-Target systems: Ubuntu Server 22.04/24.04/26.04 LTS, Debian 12/13 with systemd. **Full installation and ACME staging remain untested.** A real Debian 12 VM was used to check Caddy/Nginx/Apache configurations and discovery, occupied-domain refusal, candidate startup, updates preserving owner.json, rollback after failure and repeated installation of an already installed dashboard, and removal preserving credentials and an existing Nginx site. Locally, 15 tests pass (12 lifecycle and 3 existing release tests). Ubuntu and Debian 13 have not been tested; this does not establish readiness across the entire matrix.
+Target systems: Ubuntu Server 22.04/24.04/26.04 LTS, Debian 12/13 with systemd. **Full installation and ACME staging remain untested.** A real Debian 12 VM was used to check Caddy/Nginx/Apache configurations and discovery, occupied-domain refusal, candidate startup, updates preserving owner.json, rollback after failure and repeated installation of an already installed dashboard, and removal preserving credentials and an existing Nginx site. Locally, 16 tests pass (13 lifecycle and 3 existing release tests). Ubuntu and Debian 13 have not been tested; this does not establish readiness across the entire matrix.
 
 ## Features
 
@@ -32,15 +32,21 @@ Connect over SSH: `ssh root@SERVER_IP`. Verify the host key on first connection.
 
 ## Installation
 
-Obtain the complete source directory from a trusted CRDN-PUBLIC tag, including `ops/`; a single script without its helpers will not work. Run these commands from that directory:
+In your server SSH session, run the entire block in order. `curl`, `tar` and `sha256sum` are required. After archive verification, only the domain is requested.
 
 ```sh
-sudo sh install.sh
+set -eu
+mkdir -p "$HOME/crdn-install"
+cd "$HOME/crdn-install"
+curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.1/crdn-installer-v1.0.0-rc.1.tar.gz
+curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.1/crdn-installer-v1.0.0-rc.1.tar.gz.sha256
+sha256sum -c crdn-installer-v1.0.0-rc.1.tar.gz.sha256
+tar -xzf crdn-installer-v1.0.0-rc.1.tar.gz
+cd crdn-v1.0.0-rc.1
+sudo sh install.sh --release v1.0.0-rc.1
 ```
 
-The script asks for a domain. For automation: `sudo sh install.sh --domain monitor.example.com`.
-
-The application is downloaded from the latest stable GitHub Release: `crdn-vX.Y.Z.tar` and `crdn-vX.Y.Z.tar.sha256`. SHA-256 checks integrity; publisher trust relies on GitHub HTTPS, with no separate signature.
+The bundle is self-contained: three shell scripts, shared Python modules, RU/EN READMEs and license. The installer downloads the runtime archive and SHA-256 from **the same** GitHub Release. Checksums establish integrity; publisher trust relies on GitHub HTTPS, with no separate signature. Manual installation uses normal trusted HTTPS: Caddy obtains a production ACME certificate. **Do not add `--acme-staging`.** This guide does not remove an existing dashboard; an occupied domain stops installation.
 
 Before configuration changes, the installer examines services, processes on 80/443, effective configurations and domain occupancy. Standard package configurations of Caddy, Nginx and Apache are supported. Ambiguous setups, control panels, custom units, wildcard/regex conflicts and trusted upstream proxies require manual review. Apache must already have proxy, proxy_http, headers, ssl and alias modules enabled. The script does not enable them globally.
 
@@ -55,7 +61,21 @@ Sessions expire after 30 minutes of inactivity; metric polling does not extend t
 ## Updating and removing
 
 ```sh
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
 sudo sh update.sh
+```
+
+Until a stable release exists, explicitly update to rc.1 with:
+
+```sh
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
+sudo sh update.sh --release v1.0.0-rc.1
+```
+
+Remove from the same retained directory:
+
+```sh
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
 sudo sh uninstall.sh
 ```
 
@@ -83,13 +103,13 @@ sudo sh install.sh --domain monitor.example.com --test-archive /tmp/crdn-v1.0.0.
 
 Staging issues an untrusted certificate. Do not use this flag for a production installation. Test sources are never selected automatically; a normal update of a staging site does not migrate its certificate to production.
 
-From a clean checkout with committed runtime files:
+For developers, from a clean checkout with committed runtime and installer files:
 
 ```sh
-python3 ops/build_release.py v1.0.0 /tmp/crdn-assets
+python3 ops/build_release.py v1.0.0-rc.1 /tmp/crdn-assets
 ```
 
-This only builds the archive and SHA-256; it does not create a tag or release. For a future stable release, attach both files to the same CRDN-PUBLIC Release. The example version does not mean it has been published.
+This builds the runtime, installer bundle and two SHA-256 files from committed HEAD; it does not itself create a tag or Release. Ready-to-use rc.1 files are on the [release page](https://github.com/GreyByDefault/CRDN-PUBLIC/releases/tag/v1.0.0-rc.1).
 
 ## Local startup
 
