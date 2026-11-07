@@ -1,122 +1,329 @@
 # CRDN — Server Monitor
 
-**[Русский](README.md) | English**
+**A lightweight Linux server monitoring dashboard, right in your browser.**
 
-A lightweight NEUROFLO Linux server dashboard: CPU, RAM, root disk and network. Python 3 standard library, HTML/CSS/JavaScript/SVG; no Docker, database or frontend build. MIT.
+CRDN displays CPU usage, memory usage, disk space and network activity in real time.
 
-[Source](https://github.com/GreyByDefault/CRDN-PUBLIC) · [Releases](https://github.com/GreyByDefault/CRDN-PUBLIC/releases)
+No Docker, external monitoring services or heavyweight databases.
 
-## Status
+**Documentation language:** [Русский](README.md) | English
 
-**v1.0.0-rc.2 is a preliminary installation release (Pre-release); the installer is undergoing acceptance testing.** Stable v1.0.0 has not been published. Installation defaults to stable Releases only; the command below explicitly selects rc.2. The application is never downloaded from master.
+[GitHub](https://github.com/GreyByDefault/CRDN-PUBLIC) · [Releases](https://github.com/GreyByDefault/CRDN-PUBLIC/releases)
 
-Target systems: Ubuntu Server 22.04/24.04/26.04 LTS, Debian 12/13 with systemd. **Full installation and ACME staging remain untested.** A real Debian 12 VM was used to check Caddy/Nginx/Apache configurations and discovery, occupied-domain refusal, candidate startup, updates preserving owner.json, rollback after failure and repeated installation of an already installed dashboard, and removal preserving credentials and an existing Nginx site. Locally, 17 tests pass (14 lifecycle and 3 existing release tests). Ubuntu and Debian 13 have not been tested; this does not establish readiness across the entire matrix.
+**Current release: v1.0.0-rc.3 is a Pre-release; the installer is undergoing acceptance testing. Stable v1.0.0 has not been released yet.**
 
-## Features
+## What CRDN looks like
 
-- CPU: current usage, average, minimum and maximum over 5 minutes.
-- RAM: total, used and available memory, percentage and chart.
-- Disk: `/` only, total/used/free/available space and usage ring.
-- Network: rates for one primary interface, charts and IPv4/IPv6 TCP connections.
-- Approximately 2-second updates, browser-memory history only; unavailable values appear as a dash.
-- Graphite dashboard, 2×2 on desktop and a single column on phones.
-- Web login, account changes and logout. Server management is out of scope.
+![CRDN dashboard](docs/dashboard.png)
 
-## Preparation
+*The existing dashboard interface, captured locally with demonstration values; no production server data or secrets.*
 
-Root/sudo, Python 3, systemd, apt and standard system tools (`ip`, `ss`, `runuser`, `useradd`) are required. The installer checks their presence; missing baseline tools must be installed beforehand. Caddy and Certbot are installed through apt when needed. At least 1 GiB free in `/opt` and HTTPS access to GitHub and ACME are required.
+### Features
 
-Create DNS A and, when using IPv6, AAAA records for a dedicated domain/subdomain. **All** addresses must be public addresses assigned to this server. NAT, CDN and external proxy chains are not integrated automatically. Open inbound TCP 80/443 yourself; scripts do not change the firewall. Public HTTPS is checked after configuration; a local check cannot prove external port reachability, and certificate issuance depends on ACME.
+- **CPU** — current, average, minimum and maximum processor usage.
+- **RAM** — total, used and available memory.
+- **Disk** — total, used and free disk space.
+- **Network** — incoming and outgoing rates and established TCP connection count.
+- Metrics refresh every 2 seconds.
+- Charts show the last 5 minutes of history.
+- A convenient interface for computers and smartphones.
+- Login with a username and password, which can be changed in account settings.
 
-Connect over SSH: `ssh root@SERVER_IP`. Verify the host key on first connection.
+CRDN is designed for observing your server. It does not manage system resources or change their settings.
 
-## Installation
+---
 
-In your server SSH session, run the entire block in order. `curl`, `tar` and `sha256sum` are required. After archive verification, only the domain is requested.
+## 1. What you need for installation
 
-```sh
-set -eu
-mkdir -p "$HOME/crdn-install"
-cd "$HOME/crdn-install"
-curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.2/crdn-installer-v1.0.0-rc.2.tar.gz
-curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.2/crdn-installer-v1.0.0-rc.2.tar.gz.sha256
-sha256sum -c crdn-installer-v1.0.0-rc.2.tar.gz.sha256
-tar -xzf crdn-installer-v1.0.0-rc.2.tar.gz
-cd crdn-v1.0.0-rc.2
-sudo sh install.sh --release v1.0.0-rc.2
+To install CRDN, you need:
+
+- A VPS/VDS, dedicated server or your own Linux server.
+- Ubuntu Server 22.04, 24.04, 26.04 LTS or Debian 12/13.
+- Administrative SSH access to the server.
+- A domain or subdomain.
+- An internet connection on the server.
+
+These are target systems, with systemd. Debian 12 was used to test installation components, updates, rollback and removal, as well as Caddy/Nginx/Apache configurations. On our Ubuntu 24.04 server, applicability was checked without installation. Full installation with certificate issuance/renewal and the entire OS list have not completed acceptance testing yet.
+
+Commands require Python 3, curl, sha256sum, tar and standard system tools. The bootstrap fetches the script bundle itself; there is no need to download sources, extract an archive or choose a directory manually. Commands work as root or as a user with sudo; a sudo password prompt is normal.
+
+CRDN runs on Linux servers. Standard shared web hosting is not supported.
+
+Installation does not require Docker, a separate database or a paid monitoring service.
+
+## 2. Setting up your domain
+
+**Before installing CRDN, point your domain to your server's IP address.**
+
+Configure this in your domain's DNS management panel — for example, REG.RU, Cloudflare or another service that hosts your DNS.
+
+You can find the server's IP address in the account dashboard of the provider from which you rent your VPS.
+
+Two options are shown below. Choose the one that suits you.
+
+### Option A. Install on the main domain
+
+Suppose you purchased this domain:
+
+`example.com`
+
+And want CRDN to open directly at:
+
+`https://example.com`
+
+Open your DNS settings and add this record:
+
+| Field | Value |
+|---|---|
+| Record type | `A` |
+| Name | `@` |
+| Value | `203.0.113.10` |
+| TTL | Default |
+
+`@` means the main domain.
+
+Some DNS providers use an empty field or the domain name itself instead of `@`. Follow the notation used in your provider's panel.
+
+`203.0.113.10` is an example. Replace it with **your server's actual public IPv4 address**.
+
+After you save the record, `example.com` will point to the specified server.
+
+**Important:** if a website already runs on the main domain, installing CRDN at that address will require changes to the existing configuration. A separate subdomain is more convenient for the dashboard.
+
+### Option B. Install on a subdomain
+
+Suppose you purchased this domain:
+
+`example.com`
+
+And want to host CRDN at:
+
+`https://monitor.example.com`
+
+Open your DNS settings and add this record:
+
+| Field | Value |
+|---|---|
+| Record type | `A` |
+| Name | `monitor` |
+| Value | `203.0.113.10` |
+| TTL | Default |
+
+Here, `monitor` is the subdomain name.
+
+You can choose another name, such as `server`, `status` or `crdn`.
+
+In the value field, enter **your server's actual public IPv4 address**.
+
+After you save the record, your main website will continue to work at `example.com`, while `monitor.example.com` will point to the same server.
+
+**We recommend a dedicated subdomain for CRDN.**
+
+### How long does DNS take to update?
+
+Usually you can start checking after 10–15 minutes. In some cases, updates take several hours.
+
+The CRDN installer automatically checks where your domain points.
+
+If DNS has not updated yet or points to another server, installation stops with a clear message.
+
+Once you fix DNS, simply run the installation command again.
+
+If the domain has an AAAA record, it must also point to a public IPv6 address assigned to this server. The installer checks every A/AAAA record; automated installation through NAT/CDN is not supported. Inbound TCP 80/443 must be open beforehand: scripts do not change firewall rules or other network settings.
+
+## 3. Connecting to your server
+
+To install CRDN, connect to your Linux server over SSH.
+
+**Windows:** open PowerShell or Windows Terminal.
+
+**Linux and macOS:** open Terminal.
+
+Enter:
+
+```bash
+ssh root@203.0.113.10
 ```
 
-The bundle is self-contained: three shell scripts, shared Python modules, RU/EN READMEs and license. The installer downloads the runtime archive and SHA-256 from **the same** GitHub Release. Checksums establish integrity; publisher trust relies on GitHub HTTPS, with no separate signature. Manual installation uses normal trusted HTTPS: Caddy obtains a production ACME certificate. **Do not add `--acme-staging`.** This guide does not remove an existing dashboard; an occupied domain stops installation.
+Replace `203.0.113.10` with your server's IP address.
 
-Before configuration changes, the installer examines services, processes on 80/443, effective configurations and domain occupancy. Standard package configurations of Caddy, Nginx and Apache are supported. Ambiguous setups, control panels, incompatible effective service commands, wildcard/regex conflicts and trusted upstream proxies require manual review. Apache must already have proxy, proxy_http, headers, ssl and alias modules enabled. The script does not enable them globally.
+If your provider gave you a different username, use it instead of `root`. Installation requires administrator privileges through `sudo`.
 
-With no web server and free ports, Caddy is installed. Existing Caddy receives a separate site and import; Nginx/Apache receive a separate site file in the active include. The overall configuration is validated before reload. Caddy manages HTTPS itself; Nginx/Apache obtain a dedicated Certbot webroot certificate without configuration rewriting or server shutdown. Renewal uses a dedicated systemd timer and validates configuration before reload.
+On your first connection, SSH may ask you to confirm the host key. Compare its fingerprint with the information supplied by your provider.
 
-## First login
+Once connected, you can proceed to CRDN installation.
 
-Open `https://YOUR_DOMAIN`. **admin / admin** is created only when no saved account exists. The browser offers an optional credential change; later, **Account** (Учётная запись) requires the current password. Change the default password promptly.
+<a name="installation"></a>
 
-Sessions expire after 30 minutes of inactivity; metric polling does not extend them. The account survives updates and restarts; sessions require a new login after a restart. A separate forgotten-password recovery command is not implemented yet.
+## 4. Installing CRDN
 
-## Updating and removing
-
-```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
-sudo sh update.sh
-```
-
-Until a stable release exists, explicitly update to rc.2 with:
+Copy the installation command and run it on the server.
 
 ```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
-sudo sh update.sh --release v1.0.0-rc.2
+(
+  set -eu
+  crdn_tmp=$(mktemp -d)
+  trap 'rm -rf -- "$crdn_tmp"' EXIT
+  cd "$crdn_tmp"
+  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py
+  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py.sha256 https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py.sha256
+  sha256sum -c crdn-bootstrap.py.sha256
+  python3 ./crdn-bootstrap.py install --release v1.0.0-rc.3
+)
 ```
 
-Remove from the same retained directory:
+Paste the entire block into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain input remains interactive. This command explicitly selects v1.0.0-rc.3; production HTTPS is the default, without ACME staging.
+
+Once started, the installer:
+
+1. Checks the operating system and server resources.
+2. Checks required programs; installs Caddy or Certbot when needed. Baseline tools listed in section 1 must already be available.
+3. Detects the installed web server: Caddy, Nginx or Apache.
+4. Asks for the dashboard's domain or subdomain.
+5. Checks DNS and the network ports needed for operation.
+6. Downloads CRDN from an official Release: stable by default, or the explicitly selected v1.0.0-rc.3 in the command above.
+7. Installs the application and configures automatic startup.
+8. Connects the dashboard to the web server and configures HTTPS.
+9. Checks the application and displays the dashboard address.
+
+**During installation, you only need to supply a domain or subdomain.** Everything else is handled automatically.
+
+### If your server already hosts websites
+
+CRDN supports Caddy, Nginx and Apache.
+
+The installer detects the existing web server and adds the dashboard configuration while preserving other websites.
+
+If no web server is present, Caddy is installed and configured.
+
+If a conflict cannot be resolved safely, installation stops and explains why. Existing websites and services remain unchanged.
+
+## 5. First login to CRDN
+
+When installation finishes, open the dashboard address shown by the installer in your browser.
+
+For example:
+
+`https://monitor.example.com`
+
+Initial credentials for a new installation without a saved account:
+
+**Username:** `admin`
+
+**Password:** `admin`
+
+After you sign in, a notification will offer to change your username and password.
+
+Choose **Change** (Изменить) to set your own credentials, or **Cancel** (Отмена) to continue with the defaults.
+
+You can change your username and password later in account settings.
+
+**We strongly recommend changing the default credentials immediately after installation.**
+
+The `admin / admin` combination is publicly known. While you use it, anyone who knows the dashboard address can access it.
+
+## 6. Updating CRDN
+
+New versions are published on [GitHub Releases](https://github.com/GreyByDefault/CRDN-PUBLIC/releases).
+
+A separate command is used for updates:
 
 ```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
-sudo sh uninstall.sh
+(
+  set -eu
+  crdn_tmp=$(mktemp -d)
+  trap 'rm -rf -- "$crdn_tmp"' EXIT
+  cd "$crdn_tmp"
+  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py
+  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py.sha256 https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py.sha256
+  sha256sum -c crdn-bootstrap.py.sha256
+  python3 ./crdn-bootstrap.py update --release v1.0.0-rc.3
+)
 ```
 
-Updates validate the archive, run a candidate with temporary data, switch code atomically and restore the previous release on failure. Username, password, domain and port are preserved. Repeating `install.sh` for an installed dashboard prints its address.
+Run the block from any directory. It currently selects rc.3 explicitly; without `--release v1.0.0-rc.3`, the bootstrap uses only the latest stable release and reports an error if none exists.
 
-Removal deletes CRDN resources; deleting credentials requires a separate `DELETE` confirmation. By default they are retained for reinstallation. Packages, the shared web server and shared Caddy certificate storage are preserved. The system account remains to preserve data ownership. Administrator-modified files block automatic updates/removal until manually reconciled.
+Updates preserve:
 
-After interruption:
+- Your username and password.
+- Your domain or subdomain.
+- HTTPS settings.
+- CRDN service configuration.
+- Other user-defined application settings.
 
-```sh
-sudo sh install.sh --recover
+After an update, the dashboard continues working at the same address. Initial setup does not need to be repeated.
+
+### What types of versions are there?
+
+- **Stable** — a stable version recommended for regular installation.
+- **Beta** — a preliminary version with new features.
+- **Alpha** — an early experimental version.
+
+The normal installation command uses the latest stable CRDN version.
+
+Preliminary versions are installed separately, at the user's explicit choice.
+
+## 7. Removing CRDN
+
+A separate command is provided to remove the application:
+
+UN```sh
+(
+  set -eu
+  crdn_tmp=$(mktemp -d)
+  trap 'rm -rf -- "$crdn_tmp"' EXIT
+  cd "$crdn_tmp"
+  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py
+  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py.sha256 https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py.sha256
+  sha256sum -c crdn-bootstrap.py.sha256
+  python3 ./crdn-bootstrap.py install --release v1.0.0-rc.3
+)
 ```
 
-The journal restores only its own changes when checksums match. Concurrent edits are preserved and require manual review. After recovery, remove an incomplete installation before reinstalling.
+Run the block from any directory. The release number selects the verified removal tools, not the version of the installation to be removed.
 
-Code: `/opt/crdn-managed/releases`, atomic `current`; parameters, backups and journal: `/etc/crdn-managed`; account: `/var/lib/crdn-managed`. Service: `crdn-managed.service`, a dedicated unprivileged user and automatically selected loopback port. This is independent from the previously configured private deployment.
+The script stops the service, removes application files and removes the web server configuration created for CRDN.
 
-## Testing and release packaging
+Other websites, services and applications on the server remain unchanged.
 
-An explicit test source with the same runtime format, only on an isolated server with a test domain:
+The installer asks for separate confirmation before deleting stored credentials.
 
-```sh
-sudo sh install.sh --domain monitor.example.com --test-archive /tmp/crdn-v1.0.0.tar --test-sha256 YOUR_SHA256 --acme-staging
-```
+## 8. Troubleshooting
 
-Staging issues an untrusted certificate. Do not use this flag for a production installation. Test sources are never selected automatically; a normal update of a staging site does not migrate its certificate to production.
+### The domain does not open
 
-For developers, from a clean checkout with committed runtime and installer files:
+Check the DNS A record. It must point to your server's public IP address.
 
-```sh
-python3 ops/build_release.py v1.0.0-rc.2 /tmp/crdn-assets
-```
+If you just added the record, wait and try again.
 
-This builds the runtime, installer bundle and two SHA-256 files from committed HEAD; it does not itself create a tag or Release. Ready-to-use rc.2 files are on the [release page](https://github.com/GreyByDefault/CRDN-PUBLIC/releases/tag/v1.0.0-rc.2).
+### HTTPS does not work
 
-## Local startup
+Make sure DNS is configured correctly and the required network ports are accessible from the internet.
 
-```sh
-python3 -m crdn.api
-```
+CRDN uses HTTPS for secure connections to the dashboard.
 
-Address: `http://127.0.0.1:8765/`; stop with Ctrl+C. Secure cookies require HTTPS for full browser login. Local startup does not configure HTTPS/systemd.
+### A website already runs on the server
 
-[Contributing](CONTRIBUTING.md) · [MIT](LICENSE)
+You do not need to remove the existing website or web server.
+
+CRDN installs alongside existing projects. Caddy, Nginx and Apache are supported.
+
+### The operating system is not supported
+
+Check your Linux version. The target system list is in the first section of this guide.
+
+### Forgotten username or password
+
+A separate command for safely recovering a forgotten username or password is not implemented yet. Do not delete the account file to reset access: this destroys saved data. Email-based recovery is not available. If you know the current password, use the credential change in account settings.
+
+## 9. Source code and license
+
+CRDN is an open-source NEUROFLO project.
+
+- [Source code on GitHub](https://github.com/GreyByDefault/CRDN-PUBLIC)
+- [Official releases](https://github.com/GreyByDefault/CRDN-PUBLIC/releases)
+- MIT License.
+
+---
+
+**CRDN Server Monitor — only the metrics you need. Nothing extra.**

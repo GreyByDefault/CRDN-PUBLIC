@@ -21,15 +21,22 @@ def build(version, destination):
     if bundle.exists() or bundle.with_suffix('.gz.sha256').exists():
         raise ValueError('Installer output already exists')
     # Every executable helper is packaged from committed HEAD, never loose files.
-    helpers = ('install.sh', 'update.sh', 'uninstall.sh', 'ops/lifecycle.py',
-               'ops/package.py', 'ops/build_release.py', 'README.md', 'README.en.md', 'LICENSE')
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from bootstrap import BUNDLE_FILES
+    helpers = BUNDLE_FILES
     content = {}
     for name in helpers:
         data = subprocess.check_output(['git', 'show', 'HEAD:' + name])
         if Path(name).read_bytes() != data:
             raise ValueError('Installer must match committed source: ' + name)
         content[name] = data
+    loader = destination / 'crdn-bootstrap.py'
+    if loader.exists() or loader.with_suffix('.py.sha256').exists():
+        raise ValueError('Bootstrap output already exists')
     package(path)
+    loader.write_bytes(content['bootstrap.py'])
+    loader.with_suffix('.py.sha256').write_text(hashlib.sha256(loader.read_bytes()).hexdigest() + '  crdn-bootstrap.py\n')
     with tarfile.open(bundle, 'w:gz') as archive:
         for name, data in content.items():
             member = tarfile.TarInfo('crdn-' + version + '/' + name)
