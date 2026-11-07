@@ -8,9 +8,9 @@
 
 ## Статус
 
-**v1.0.0-rc.1 — предварительный установочный выпуск (Pre-release), установщик проходит приёмку.** Стабильный v1.0.0 не опубликован. По умолчанию установка выбирает только стабильный Release; приведённая ниже команда явно выбирает rc.1. Приложение из master не скачивается.
+**v1.0.0-rc.2 — предварительный установочный выпуск (Pre-release), установщик проходит приёмку.** Стабильный v1.0.0 не опубликован. По умолчанию установка выбирает только стабильный Release; приведённая ниже команда явно выбирает rc.2. Приложение из master не скачивается.
 
-Целевые ОС: Ubuntu Server 22.04/24.04/26.04 LTS, Debian 12/13 с systemd. **Полная установка и ACME staging ещё не проверены.** В настоящей VM Debian 12 проверены конфигурации и обследование Caddy/Nginx/Apache, отказ при занятом домене, пробный запуск, обновление с сохранением owner.json, откат после ошибки и повторная установка уже установленной панели и удаление с сохранением данных и соседнего сайта Nginx. Локально проходят 16 тестов (13 lifecycle и 3 существующих release). Ubuntu и Debian 13 не проверены; это не подтверждение готовности всей матрицы.
+Целевые ОС: Ubuntu Server 22.04/24.04/26.04 LTS, Debian 12/13 с systemd. **Полная установка и ACME staging ещё не проверены.** В настоящей VM Debian 12 проверены конфигурации и обследование Caddy/Nginx/Apache, отказ при занятом домене, пробный запуск, обновление с сохранением owner.json, откат после ошибки и повторная установка уже установленной панели и удаление с сохранением данных и соседнего сайта Nginx. Локально проходят 17 тестов (14 lifecycle и 3 существующих release). Ubuntu и Debian 13 не проверены; это не подтверждение готовности всей матрицы.
 
 ## Возможности
 
@@ -38,17 +38,17 @@
 set -eu
 mkdir -p "$HOME/crdn-install"
 cd "$HOME/crdn-install"
-curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.1/crdn-installer-v1.0.0-rc.1.tar.gz
-curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.1/crdn-installer-v1.0.0-rc.1.tar.gz.sha256
-sha256sum -c crdn-installer-v1.0.0-rc.1.tar.gz.sha256
-tar -xzf crdn-installer-v1.0.0-rc.1.tar.gz
-cd crdn-v1.0.0-rc.1
-sudo sh install.sh --release v1.0.0-rc.1
+curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.2/crdn-installer-v1.0.0-rc.2.tar.gz
+curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.2/crdn-installer-v1.0.0-rc.2.tar.gz.sha256
+sha256sum -c crdn-installer-v1.0.0-rc.2.tar.gz.sha256
+tar -xzf crdn-installer-v1.0.0-rc.2.tar.gz
+cd crdn-v1.0.0-rc.2
+sudo sh install.sh --release v1.0.0-rc.2
 ```
 
 Комплект самодостаточен: три shell-скрипта, общие Python-модули, README RU/EN и лицензия. Установщик загружает runtime-архив и SHA-256 из **того же** GitHub Release. Контрольная сумма подтверждает целостность; доверие к издателю основано на HTTPS GitHub, отдельной подписи нет. Для ручной установки используется обычный доверенный HTTPS: Caddy получает сертификат production ACME. **Не добавляйте `--acme-staging`.** Существующая панель не удаляется этой инструкцией; занятый домен останавливает установку.
 
-Перед изменением конфигурации обследуются службы, процессы на 80/443, используемые конфигурации и занятость домена. Поддерживаются стандартные пакетные конфигурации Caddy, Nginx и Apache. Неоднозначные схемы, панели управления, нестандартные units, wildcard/regex-конфликты и доверенные upstream-прокси требуют ручного разбора. Apache должен уже иметь модули proxy, proxy_http, headers, ssl, alias. Скрипт не включает их глобально.
+Перед изменением конфигурации обследуются службы, процессы на 80/443, используемые конфигурации и занятость домена. Поддерживаются стандартные пакетные конфигурации Caddy, Nginx и Apache. Неоднозначные схемы, панели управления, несовместимые эффективные команды служб, wildcard/regex-конфликты и доверенные upstream-прокси требуют ручного разбора. Apache должен уже иметь модули proxy, proxy_http, headers, ssl, alias. Скрипт не включает их глобально.
 
 Без веб-сервера и при свободных портах устанавливается Caddy. Для действующего Caddy добавляются отдельный сайт и import; для Nginx/Apache — отдельный файл сайта в действующем include. Общая конфигурация проверяется перед reload. Caddy управляет HTTPS сам; Nginx/Apache получают отдельный сертификат Certbot webroot без переписывания конфигураций или остановки сервера. Продление — отдельный systemd timer с проверкой конфигурации перед reload.
 
@@ -61,21 +61,21 @@ sudo sh install.sh --release v1.0.0-rc.1
 ## Обновление и удаление
 
 ```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
 sudo sh update.sh
 ```
 
-Пока стабильного выпуска нет, для явного повторного обновления до rc.1:
+Пока стабильного выпуска нет, для явного повторного обновления до rc.2:
 
 ```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
-sudo sh update.sh --release v1.0.0-rc.1
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
+sudo sh update.sh --release v1.0.0-rc.2
 ```
 
 Удаление из того же сохранённого каталога:
 
 ```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
 sudo sh uninstall.sh
 ```
 
@@ -106,10 +106,10 @@ Staging выдаёт недоверенный сертификат. Не исп�
 Разработчикам: из корня чистого checkout с committed runtime и скриптами:
 
 ```sh
-python3 ops/build_release.py v1.0.0-rc.1 /tmp/crdn-assets
+python3 ops/build_release.py v1.0.0-rc.2 /tmp/crdn-assets
 ```
 
-Команда собирает runtime, установочный комплект и две SHA-256 суммы из committed HEAD; сама не создаёт тег или Release. Готовые файлы rc.1 доступны на [странице выпуска](https://github.com/GreyByDefault/CRDN-PUBLIC/releases/tag/v1.0.0-rc.1).
+Команда собирает runtime, установочный комплект и две SHA-256 суммы из committed HEAD; сама не создаёт тег или Release. Готовые файлы rc.2 доступны на [странице выпуска](https://github.com/GreyByDefault/CRDN-PUBLIC/releases/tag/v1.0.0-rc.2).
 
 ## Локальный запуск
 

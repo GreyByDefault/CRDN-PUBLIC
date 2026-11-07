@@ -11,6 +11,7 @@ from pathlib import Path
 import pwd
 import re
 import shutil
+import shlex
 import signal
 import socket
 import ssl
@@ -142,7 +143,7 @@ def source(args):
             release = json.loads(download('https://api.github.com/repos/GreyByDefault/CRDN-PUBLIC/releases/' + endpoint))
         except HTTPError as error:
             if error.code == 404:
-                raise ValueError('Requested CRDN release not found.' if selected else 'No stable CRDN release is available. Use --release v1.0.0-rc.1 explicitly to accept the preliminary release; master is never installed.') from error
+                raise ValueError('Requested CRDN release not found.' if selected else 'No stable CRDN release is available. Use --release v1.0.0-rc.2 explicitly to accept the preliminary release; master is never installed.') from error
             raise
         if release.get('draft') or (not selected and (release.get('prerelease') or not re.fullmatch(r'v\d+\.\d+\.\d+', release['tag_name']))) or (selected and release['tag_name'] != selected) or not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?', release['tag_name']):
             raise ValueError('Invalid GitHub Release metadata')
@@ -215,6 +216,45 @@ def reload(web):
     run('systemctl', 'reload', web)
 
 
+def caddy_command(value, operation):
+    """Parse one effective systemd Exec command; reject wrappers/extra commands."""
+    match = re.fullmatch(r'\{ path=/usr/bin/caddy ; argv\[\]=([^;]+) ; ignore_errors=no ; [^{}]*\}', value.strip())
+    if not match:
+        raise ValueError('Unsupported effective Caddy Exec' + operation)
+    argv = shlex.split(match[1])
+    expected = 'run' if operation == 'Start' else 'reload'
+    if argv[:2] != ['/usr/bin/caddy', expected]:
+        raise ValueError('Caddy must use its direct run/reload command')
+    args = argv[2:]
+    if args.count('--config') != 1:
+        raise ValueError('Caddy needs one explicit Caddyfile')
+    index = args.index('--config')
+    if args[index:index+2] != ['--config', '/etc/caddy/Caddyfile']:
+        raise ValueError('Caddy must use /etc/caddy/Caddyfile')
+    del args[index:index+2]
+    if '--adapter' in args:
+        index = args.index('--adapter')
+        if args[index:index+2] != ['--adapter', 'caddyfile']:
+            raise ValueError('Only the Caddyfile adapter is supported')
+        del args[index:index+2]
+    allowed = {'--environ'} if operation == 'Start' else {'--force'}
+    if len(args) != len(set(args)) or set(args) - allowed:
+        raise ValueError('Unsupported Caddy flags: ' + ' '.join(args))
+    return argv
+
+
+def compatible_caddy_service(pid):
+    start = caddy_command(run('systemctl', 'show', 'caddy', '-p', 'ExecStart', '--value'), 'Start')
+    caddy_command(run('systemctl', 'show', 'caddy', '-p', 'ExecReload', '--value'), 'Reload')
+    actual = Path('/proc/' + pid + '/cmdline').read_bytes().rstrip(b'\0').decode().split('\0')
+    if actual != start:
+        raise ValueError('Running Caddy differs from effective systemd ExecStart')
+    if Path('/proc/' + pid + '/exe').resolve() != Path('/usr/bin/caddy').resolve():
+        raise ValueError('Running Caddy executable differs from validation executable')
+    # Environment/drop-ins are not rejected by name. Effective commands plus
+    # native validation and comparison with the live admin config establish support.
+
+
 def survey(domain):
     active = [w for w in ('caddy', 'nginx', 'apache2') if run('systemctl', 'is-active', w, check=False).strip() == 'active']
     listeners = run('ss', '-H', '-ltnp', '( sport = :80 or sport = :443 )')
@@ -229,7 +269,7 @@ def survey(domain):
     if any(name != web for name in re.findall(r'\(\("([^"]+)"', listeners)):
         raise ValueError('Unknown listener process: ' + listeners)
     unit = run('systemctl', 'cat', web)
-    if '/etc/systemd/system/' in unit or 'EnvironmentFile=' in unit:
+    if web != 'caddy' and ('/etc/systemd/system/' in unit or 'EnvironmentFile=' in unit):
         raise ValueError('Custom web-server unit/environment requires manual review')
     pid = run('systemctl', 'show', web, '-p', 'MainPID', '--value').strip()
     command = Path('/proc/' + pid + '/cmdline').read_bytes().replace(b'\0', b' ').decode()
@@ -237,8 +277,7 @@ def survey(domain):
         raise ValueError('Custom web-server config arguments: ' + command)
     validate(web)
     if web == 'caddy':
-        if '--config /etc/caddy/Caddyfile' not in command or '--resume' in command:
-            raise ValueError('Caddy must run its standard Caddyfile, without --resume')
+        compatible_caddy_service(pid)
         text = run('caddy', 'adapt', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile')
         try:
             with urlopen('http://127.0.0.1:2019/config/', timeout=3) as response:

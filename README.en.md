@@ -8,9 +8,9 @@ A lightweight NEUROFLO Linux server dashboard: CPU, RAM, root disk and network. 
 
 ## Status
 
-**v1.0.0-rc.1 is a preliminary installation release (Pre-release); the installer is undergoing acceptance testing.** Stable v1.0.0 has not been published. Installation defaults to stable Releases only; the command below explicitly selects rc.1. The application is never downloaded from master.
+**v1.0.0-rc.2 is a preliminary installation release (Pre-release); the installer is undergoing acceptance testing.** Stable v1.0.0 has not been published. Installation defaults to stable Releases only; the command below explicitly selects rc.2. The application is never downloaded from master.
 
-Target systems: Ubuntu Server 22.04/24.04/26.04 LTS, Debian 12/13 with systemd. **Full installation and ACME staging remain untested.** A real Debian 12 VM was used to check Caddy/Nginx/Apache configurations and discovery, occupied-domain refusal, candidate startup, updates preserving owner.json, rollback after failure and repeated installation of an already installed dashboard, and removal preserving credentials and an existing Nginx site. Locally, 16 tests pass (13 lifecycle and 3 existing release tests). Ubuntu and Debian 13 have not been tested; this does not establish readiness across the entire matrix.
+Target systems: Ubuntu Server 22.04/24.04/26.04 LTS, Debian 12/13 with systemd. **Full installation and ACME staging remain untested.** A real Debian 12 VM was used to check Caddy/Nginx/Apache configurations and discovery, occupied-domain refusal, candidate startup, updates preserving owner.json, rollback after failure and repeated installation of an already installed dashboard, and removal preserving credentials and an existing Nginx site. Locally, 17 tests pass (14 lifecycle and 3 existing release tests). Ubuntu and Debian 13 have not been tested; this does not establish readiness across the entire matrix.
 
 ## Features
 
@@ -38,17 +38,17 @@ In your server SSH session, run the entire block in order. `curl`, `tar` and `sh
 set -eu
 mkdir -p "$HOME/crdn-install"
 cd "$HOME/crdn-install"
-curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.1/crdn-installer-v1.0.0-rc.1.tar.gz
-curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.1/crdn-installer-v1.0.0-rc.1.tar.gz.sha256
-sha256sum -c crdn-installer-v1.0.0-rc.1.tar.gz.sha256
-tar -xzf crdn-installer-v1.0.0-rc.1.tar.gz
-cd crdn-v1.0.0-rc.1
-sudo sh install.sh --release v1.0.0-rc.1
+curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.2/crdn-installer-v1.0.0-rc.2.tar.gz
+curl --fail --location --proto '=https' --proto-redir '=https' -O https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.2/crdn-installer-v1.0.0-rc.2.tar.gz.sha256
+sha256sum -c crdn-installer-v1.0.0-rc.2.tar.gz.sha256
+tar -xzf crdn-installer-v1.0.0-rc.2.tar.gz
+cd crdn-v1.0.0-rc.2
+sudo sh install.sh --release v1.0.0-rc.2
 ```
 
 The bundle is self-contained: three shell scripts, shared Python modules, RU/EN READMEs and license. The installer downloads the runtime archive and SHA-256 from **the same** GitHub Release. Checksums establish integrity; publisher trust relies on GitHub HTTPS, with no separate signature. Manual installation uses normal trusted HTTPS: Caddy obtains a production ACME certificate. **Do not add `--acme-staging`.** This guide does not remove an existing dashboard; an occupied domain stops installation.
 
-Before configuration changes, the installer examines services, processes on 80/443, effective configurations and domain occupancy. Standard package configurations of Caddy, Nginx and Apache are supported. Ambiguous setups, control panels, custom units, wildcard/regex conflicts and trusted upstream proxies require manual review. Apache must already have proxy, proxy_http, headers, ssl and alias modules enabled. The script does not enable them globally.
+Before configuration changes, the installer examines services, processes on 80/443, effective configurations and domain occupancy. Standard package configurations of Caddy, Nginx and Apache are supported. Ambiguous setups, control panels, incompatible effective service commands, wildcard/regex conflicts and trusted upstream proxies require manual review. Apache must already have proxy, proxy_http, headers, ssl and alias modules enabled. The script does not enable them globally.
 
 With no web server and free ports, Caddy is installed. Existing Caddy receives a separate site and import; Nginx/Apache receive a separate site file in the active include. The overall configuration is validated before reload. Caddy manages HTTPS itself; Nginx/Apache obtain a dedicated Certbot webroot certificate without configuration rewriting or server shutdown. Renewal uses a dedicated systemd timer and validates configuration before reload.
 
@@ -61,21 +61,21 @@ Sessions expire after 30 minutes of inactivity; metric polling does not extend t
 ## Updating and removing
 
 ```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
 sudo sh update.sh
 ```
 
-Until a stable release exists, explicitly update to rc.1 with:
+Until a stable release exists, explicitly update to rc.2 with:
 
 ```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
-sudo sh update.sh --release v1.0.0-rc.1
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
+sudo sh update.sh --release v1.0.0-rc.2
 ```
 
 Remove from the same retained directory:
 
 ```sh
-cd "$HOME/crdn-install/crdn-v1.0.0-rc.1"
+cd "$HOME/crdn-install/crdn-v1.0.0-rc.2"
 sudo sh uninstall.sh
 ```
 
@@ -106,10 +106,10 @@ Staging issues an untrusted certificate. Do not use this flag for a production i
 For developers, from a clean checkout with committed runtime and installer files:
 
 ```sh
-python3 ops/build_release.py v1.0.0-rc.1 /tmp/crdn-assets
+python3 ops/build_release.py v1.0.0-rc.2 /tmp/crdn-assets
 ```
 
-This builds the runtime, installer bundle and two SHA-256 files from committed HEAD; it does not itself create a tag or Release. Ready-to-use rc.1 files are on the [release page](https://github.com/GreyByDefault/CRDN-PUBLIC/releases/tag/v1.0.0-rc.1).
+This builds the runtime, installer bundle and two SHA-256 files from committed HEAD; it does not itself create a tag or Release. Ready-to-use rc.2 files are on the [release page](https://github.com/GreyByDefault/CRDN-PUBLIC/releases/tag/v1.0.0-rc.2).
 
 ## Local startup
 
