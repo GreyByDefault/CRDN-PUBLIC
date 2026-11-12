@@ -63,7 +63,7 @@ def release_tag(selected):
     for asset in (name, name + '.sha256'):
         if assets.get(asset, prefix + asset) != prefix + asset:
             raise ValueError('Missing or nonofficial installer asset: ' + asset)
-    return tag, assets[name], assets[name + '.sha256']
+    return tag, prefix + name, prefix + name + '.sha256'
 
 
 def release_pair(tag, name, fetcher=None):
