@@ -125,3 +125,10 @@ footer { display: flex; justify-content: space-between; gap: 12px; color: var(--
 }
 
 @media (max-width: 700px) { .update-tools-panel { left: 0; right: auto; } }
+
+@media (max-width: 700px) {
+ .page-header { grid-template-columns: minmax(0, 1fr); }
+ .identity { grid-column: 1; grid-row: 1; }
+ .version-block { grid-column: 1; grid-row: 2; }
+ .header-actions { grid-column: 1; grid-row: 3; justify-self: start; }
+}
