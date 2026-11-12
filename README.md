@@ -160,7 +160,7 @@ ssh root@203.0.113.10
 Скопируйте установочную команду и выполните её на сервере.
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.7'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.7'
 ```
 
 Вставьте одну строку в SSH-сеанс. Загрузчик получает полный комплект из официального Release, проверяет SHA-256 и запускает существующий установщик. При ошибке HTTPS или контрольной суммы выполнение прекращается. Ввод домена и пароля sudo остаётся интерактивным через /dev/tty, даже когда загрузчик передан через pipe. Эта команда явно выбирает v1.0.0-rc.7; production HTTPS включён по умолчанию, без ACME staging.
@@ -220,7 +220,7 @@ CRDN поддерживает Caddy, Nginx и Apache.
 Для обновления используется отдельная команда:
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.7'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.7'
 ```
 
 Команду можно выполнить из любого каталога. Сейчас он явно выбирает rc.7; без `--release v1.0.0-rc.7` загрузчик использует только последний стабильный выпуск и сообщает об ошибке, если его нет.
@@ -250,7 +250,7 @@ bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https 
 Для удаления программы предусмотрена отдельная команда:
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.7'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.7'
 ```
 
 Команда работает из любого каталога. Номер выпуска здесь выбирает проверенный комплект инструментов удаления, а не версию удаляемой установки.

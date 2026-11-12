@@ -49,14 +49,15 @@ def release_tag(selected):
     try:
         metadata = json.loads(fetch(API + ('tags/' + selected if selected else 'latest')))
     except (URLError, OSError, TimeoutError):
+        print('GitHub недоступен. Получение сведений о выпуске с зеркала NEUROFLO…', flush=True)
         metadata = json.loads(fetch(MIRROR + ('/releases/' + selected + '/release.json' if selected else '/stable.json')))
     if not metadata.get('tag_name'):
-        raise ValueError('No stable CRDN release exists; select an RC explicitly with --release')
+        raise ValueError('Стабильного выпуска CRDN пока нет. Для предварительного выпуска явно укажите --release.')
     tag = metadata.get('tag_name', '')
     if metadata.get('draft') or not re.fullmatch(VERSION, tag) or (selected and tag != selected):
         raise ValueError('Invalid release metadata')
     if not selected and (metadata.get('prerelease') or not re.fullmatch(r'v\d+\.\d+\.\d+', tag)):
-        raise ValueError('Default mode accepts stable releases only')
+        raise ValueError('Обычный режим допускает только стабильные выпуски.')
     name = 'crdn-installer-' + tag + '.tar.gz'
     assets = {item['name']: item['browser_download_url'] for item in metadata['assets']}
     prefix = REPOSITORY + '/releases/download/' + tag + '/'
@@ -71,13 +72,16 @@ def release_pair(tag, name, fetcher=None):
     fetcher = fetcher or fetch
     primary = REPOSITORY + '/releases/download/' + tag + '/'
     mirror = MIRROR + '/releases/' + tag + '/'
+    print('Скачивание файлов выпуска ' + tag + '…', flush=True)
     try:
         raw, checksum = fetcher(primary + name), fetcher(primary + name + '.sha256')
     except (URLError, OSError, TimeoutError):
+        print('GitHub недоступен. Переключение на зеркало NEUROFLO…', flush=True)
         raw, checksum = fetcher(mirror + name), fetcher(mirror + name + '.sha256')
+    print('Проверка файлов выпуска…', flush=True)
     match = re.fullmatch(r'([0-9a-f]{64})  ' + re.escape(name) + r'\n?', checksum.decode('ascii'))
     if not match or hashlib.sha256(raw).hexdigest() != match[1]:
-        raise ValueError('Release SHA-256 mismatch: ' + name)
+        raise ValueError('Ошибка целостности файла: ' + name + '. Выполнение остановлено без переключения источника.')
     return raw, checksum
 
 
@@ -85,7 +89,7 @@ def unpack(raw, checksum, tag, destination):
     name = 'crdn-installer-' + tag + '.tar.gz'
     match = re.fullmatch(r'([0-9a-f]{64})  ' + re.escape(name) + r'\n?', checksum.decode('ascii'))
     if not match or hashlib.sha256(raw).hexdigest() != match[1]:
-        raise ValueError('Installer SHA-256 mismatch')
+        raise ValueError('Контрольная сумма SHA-256 установочного комплекта не совпала.')
     expected = {'crdn-' + tag + '/' + path for path in BUNDLE_FILES}
     content = {}
     total = 0
@@ -136,4 +140,5 @@ if __name__ == '__main__':
     try:
         raise SystemExit(main())
     except Exception as error:
-        raise SystemExit('CRDN: ' + str(error))
+        print('CRDN: файлы не подготовлены. Операция не запущена.', file=sys.stderr)
+        raise SystemExit('Причина: ' + str(error))

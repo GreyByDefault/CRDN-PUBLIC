@@ -160,7 +160,7 @@ Once connected, you can proceed to CRDN installation.
 Copy the installation command and run it on the server.
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.7'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.7'
 ```
 
 Paste the single line into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, even when the loader arrives through a pipe. This command explicitly selects v1.0.0-rc.7; production HTTPS is the default, without ACME staging.
@@ -220,7 +220,7 @@ New versions are published on [GitHub Releases](https://github.com/GreyByDefault
 A separate command is used for updates:
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.7'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.7'
 ```
 
 Run the command from any directory. It currently selects rc.7 explicitly; without `--release v1.0.0-rc.7`, the bootstrap uses only the latest stable release and reports an error if none exists.
@@ -250,7 +250,7 @@ Preliminary versions are installed separately, at the user's explicit choice.
 A separate command is provided to remove the application:
 
 UN```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.7'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.7'
 ```
 
 Run the command from any directory. The release number selects the verified removal tools, not the version of the installation to be removed.

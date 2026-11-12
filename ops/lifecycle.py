@@ -147,12 +147,13 @@ def source(args):
         tag, _, _ = bootstrap.release_tag(selected)
         raw, checksum = bootstrap.release_pair(tag, 'crdn-' + tag + '.tar')
         expected = checksum.decode('ascii').split()[0]
+        args.release = tag
     return validate_archive(raw, expected)
 
 
 def validate_archive(raw, expected):
     if len(raw) > LIMIT or not re.fullmatch('[0-9a-f]{64}', expected) or digest(raw) != expected:
-        raise ValueError('Archive SHA-256 mismatch or size limit')
+        raise ValueError('Контрольная сумма SHA-256 архива не совпала либо превышен допустимый размер.')
     content = {}
     with tarfile.open(fileobj=io.BytesIO(raw), mode='r:') as archive:
         total = 0
@@ -171,20 +172,20 @@ def validate_archive(raw, expected):
 
 def platform_check():
     if os.geteuid() != 0:
-        raise ValueError('Run with sudo/root')
+        raise ValueError('Запустите команду от root или через sudo.')
     info = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
     if info.get('ID', '').strip('"') not in ('ubuntu', 'debian'):
-        raise ValueError('Only Ubuntu Server and Debian are supported')
+        raise ValueError('Поддерживаются только Ubuntu Server и Debian.')
     versions = {'ubuntu': ('22.04', '24.04', '26.04'), 'debian': ('12', '13')}
     if info.get('VERSION_ID', '').strip('"') not in versions[info['ID'].strip('"')]:
-        raise ValueError('Unsupported OS version')
+        raise ValueError('Эта версия ОС не поддерживается установщиком.')
     if not Path('/run/systemd/system').is_dir():
-        raise ValueError('A running systemd system is required')
+        raise ValueError('Требуется запущенная система systemd.')
     for command in ('systemctl', 'ss', 'ip', 'apt-get', 'runuser', 'useradd'):
         if not shutil.which(command):
-            raise ValueError('Required system tool missing: ' + command)
+            raise ValueError('Не найдена необходимая системная команда: ' + command)
     if shutil.disk_usage('/opt').free < 1024**3:
-        raise ValueError('At least 1 GiB free in /opt required')
+        raise ValueError('В /opt требуется не менее 1 ГиБ свободного места.')
 
 
 def free_port():
@@ -296,7 +297,7 @@ def survey(domain):
     if web == 'apache2' and re.search(r'ServerAlias\s+[^\n]*[?*]', text):
         raise ValueError('Apache wildcard aliases require manual review')
     if domain in text or ('*.' + domain.split('.', 1)[1]) in text or re.search(r'server_name\s+[^;]*[~*]', text):
-        raise ValueError('Domain occupied or wildcard/regex routing requires manual review')
+        raise ValueError('Домен уже занят либо используется неоднозначная маршрутизация wildcard/regex. Нужна ручная проверка конфигурации.')
     return web, False
 
 
@@ -349,21 +350,21 @@ WantedBy=multi-user.target
 def health(port, process=None):
     for _ in range(60):
         if process is not None and process.poll() is not None:
-            raise RuntimeError('Candidate exited')
+            raise RuntimeError('Новая версия CRDN не запустилась.')
         try:
             with urlopen(f'http://127.0.0.1:{port}/login', timeout=1) as response:
                 if b'login-form' not in response.read():
-                    raise ValueError('Invalid login page')
+                    raise ValueError('Проверка страницы входа CRDN не пройдена.')
             try:
                 urlopen(f'http://127.0.0.1:{port}/api/metrics', timeout=1)
-                raise ValueError('Metrics are not protected')
+                raise ValueError('Проверка защиты метрик входом не пройдена.')
             except HTTPError as error:
                 if error.code != 401:
                     raise
             return
         except OSError:
             time.sleep(.25)
-    raise RuntimeError('Health check timed out')
+    raise RuntimeError('CRDN не ответил на проверку работоспособности за отведённое время.')
 
 
 def probe(candidate, domain):
@@ -405,6 +406,7 @@ def activate(content, state):
             folder.chmod(0o755)
     state.setdefault('releases', {})[str(candidate)] = {name: digest(data) for name, data in content.items()}
     save(STATE, state)
+    print('Проверка новой версии с временными данными…', flush=True)
     probe(candidate, state['domain'])
     old = str((ROOT / 'current').resolve()) if (ROOT / 'current').is_symlink() else None
     # Persist activation intent before switching for recovery after SIGKILL/power loss.
@@ -412,6 +414,7 @@ def activate(content, state):
     save(STATE, state)
     try:
         switch(candidate)
+        print('Настройка службы и проверка результата…', flush=True)
         run('systemctl', 'restart', UNIT)
         health(state['port'])
         run('systemctl', 'is-active', '--quiet', UNIT)
@@ -438,14 +441,36 @@ def owned_check(state):
             raise ValueError('Owned file was changed; manual reconciliation required: ' + name)
 
 
+def installation_result(domain, new_account):
+    record = json.loads((DATA / 'owner.json').read_text())
+    standard = new_account and record.get('default') is True and record.get('username') == 'admin'
+    print('\n' + '=' * 48)
+    print('Установка CRDN завершена.\nОткройте панель в браузере:')
+    print('https://' + domain)
+    if standard:
+        print('Логин: admin\nПароль: admin\nПосле входа рекомендуем изменить данные учётной записи.')
+    else:
+        print('Используйте действующие данные входа. Пароль не изменён и не выводится.')
+    print('=' * 48)
+
+
+def update_result(state):
+    print('\nОбновление CRDN завершено')
+    print('Установленная версия: ' + state['version'])
+    print('Адрес панели: https://' + state['domain'])
+    print('Данные входа и настройки сохранены.')
+
+
 def install(args, content):
-    domain = (args.domain or input('Domain / поддомен CRDN: ')).strip().lower()
+    domain = (args.domain or input('Введите домен или поддомен для панели, без https://: ')).strip().lower()
+    new_account = not (DATA / 'owner.json').exists()
+    print('Проверка сервера, домена и веб-сервера…', flush=True)
     # DNS ownership first; fresh hosts cannot yet accept port 80/443 connections.
     web, fresh = survey(domain)
     check_dns(domain)
     port = free_port()
     if any(p.exists() for p in (ROOT, STATE, Path('/etc/systemd/system/' + UNIT))):
-        raise ValueError('Untracked CRDN resources exist; manual review required')
+        raise ValueError('Найдены ресурсы CRDN, не зарегистрированные установщиком. Требуется ручная проверка.')
     try:
         pwd.getpwnam('crdn-managed')
     except KeyError:
@@ -453,7 +478,7 @@ def install(args, content):
     else:
         account = pwd.getpwnam('crdn-managed')
         if not (META / 'account.json').exists() or json.loads((META / 'account.json').read_text()) != {'uid': account.pw_uid}:
-            raise ValueError('Untracked crdn-managed account exists')
+            raise ValueError('Системная учётная запись crdn-managed уже существует без записи установки. Требуется ручная проверка.')
     for path in (Path('/etc/crdn-managed/acme'), Path('/var/lib/crdn-managed-acme'), Path('/etc/systemd/system/crdn-managed-renew.service'), Path('/usr/local/lib/crdn-managed')):
         if path.exists():
             raise ValueError('Untracked lifecycle resource: ' + str(path))
@@ -470,7 +495,7 @@ def install(args, content):
     except KeyError:
         run('useradd', '--system', '--user-group', '--home-dir', str(DATA), '--no-create-home', '--shell', '/usr/sbin/nologin', 'crdn-managed')
     save(META / 'account.json', {'uid': pwd.getpwnam('crdn-managed').pw_uid})
-    state = dict(domain=domain, port=port, web=web, files={}, phase='installing', staging=args.acme_staging)
+    state = dict(domain=domain, port=port, web=web, files={}, phase='installing', staging=args.acme_staging, version=getattr(args,'release',None))
     save(STATE, state)
     tx = Transaction()
     try:
@@ -478,6 +503,7 @@ def install(args, content):
             tx.write(path, text.encode())
             state['files'][str(path)] = digest(text.encode())
             save(STATE, state)
+        print('Настройка службы и HTTPS…', flush=True)
         if web == 'caddy':
             main = Path('/etc/caddy/Caddyfile')
             original = main.read_text()
@@ -485,7 +511,7 @@ def install(args, content):
                 write(main, original + '\nimport /etc/caddy/crdn-managed/*.caddy\n')
         path = {'caddy': '/etc/caddy/crdn-managed/crdn.caddy', 'nginx': '/etc/nginx/conf.d/crdn-managed.conf', 'apache2': '/etc/apache2/sites-enabled/crdn-managed.conf'}[web]
         if Path(path).exists():
-            raise ValueError('Site filename already occupied')
+            raise ValueError('Файл конфигурации сайта уже занят.')
         write(path, site(web, domain, port, False, args.acme_staging))
         if fresh:
             validate(web)
@@ -516,13 +542,14 @@ ExecStart=/usr/bin/certbot renew --quiet --config-dir {acme}/config --work-dir {
         run('systemctl', 'enable', UNIT)
         if web != 'caddy':
             run('systemctl', 'enable', '--now', 'crdn-managed-renew.timer')
+        print('Проверка результата установки и HTTPS…', flush=True)
         # Verify HTTPS, allowing staging's intentionally untrusted chain only in explicit tests.
         context = ssl._create_unverified_context() if args.acme_staging else ssl.create_default_context()
         for attempt in range(30):
             try:
                 with urlopen('https://' + domain + '/login', context=context, timeout=5) as response:
                     if b'login-form' not in response.read():
-                        raise ValueError('Public HTTPS did not reach CRDN')
+                        raise ValueError('По публичному HTTPS-адресу не получена страница входа CRDN.')
                 break
             except OSError:
                 if attempt == 29:
@@ -542,17 +569,18 @@ ExecStart=/usr/bin/certbot renew --quiet --config-dir {acme}/config --work-dir {
         reload(web)
         # Keep tracked data/releases/account for explicit recovery/removal.
         raise
-    print('Installed: https://' + domain + (' (ACME STAGING: untrusted certificate)' if args.acme_staging else ''))
+    if args.acme_staging: print('Внимание: тестовый ACME staging, сертификат недоверенный.')
+    installation_result(domain, new_account)
 
 
 def check_dns(domain):
     # Check every DNS family; no assumption that a public echo IP proves ownership.
     if not re.fullmatch(r'(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}', domain):
-        raise ValueError('Invalid ASCII domain')
+        raise ValueError('Введите домен или поддомен без https:// и пути.')
     addresses = {str(ipaddress.ip_address(a[4][0])) for a in socket.getaddrinfo(domain, 80, type=socket.SOCK_STREAM)}
     local = {str(ipaddress.ip_address(a['local'])) for dev in json.loads(run('ip', '-j', 'address')) for a in dev['addr_info']}
     if not addresses or not addresses <= local or any(not ipaddress.ip_address(a).is_global for a in addresses):
-        raise ValueError('All public DNS A/AAAA must belong to this host; NAT/CDN requires manual setup')
+        raise ValueError('Все DNS-записи A/AAAA должны указывать на публичные адреса этого сервера. NAT/CDN требуют ручной настройки.')
 
 
 def uninstall(state):
@@ -577,7 +605,7 @@ def uninstall(state):
         group = grp.getgrnam('crdn-managed')
         if group.gr_gid != account.pw_gid or set(group.gr_mem) - {'crdn-managed'} or any(u.pw_gid == group.gr_gid and u.pw_name != 'crdn-managed' for u in pwd.getpwall()):
             raise ValueError('Service group is shared; manual reconciliation required')
-    print('Removing CRDN and all its configuration and user data, including credentials.')
+    print('Удаление CRDN, конфигурации и всех его пользовательских данных, включая учётную запись…', flush=True)
     if state['phase'] != 'preparing':
         validate(state['web'])
     previous_phase = state['phase']
@@ -586,6 +614,8 @@ def uninstall(state):
     tx = Transaction()
     try:
         run('systemctl', 'disable', '--now', UNIT, check=False)
+        if run('systemctl', 'show', UNIT, '-p', 'MainPID', '--value', check=False).strip() not in ('', '0'):
+            raise RuntimeError('Служба CRDN ещё работает. Удаление остановлено.')
         run('systemctl', 'disable', '--now', 'crdn-managed-renew.timer', check=False)
         for name in state['files']:
             if name == '/etc/caddy/Caddyfile':
@@ -630,7 +660,10 @@ def uninstall(state):
     # Includes account ownership marker, release manifests and internal backups;
     # external backups and shared Caddy certificate storage are outside META.
     if META.exists(): shutil.rmtree(META)
-    print('Removed CRDN, configuration and all user data, including credentials.')
+    print('Проверка результата удаления…', flush=True)
+    if any(p.exists() for p in (ROOT, DATA, META)):
+        raise RuntimeError('Удаление завершено не полностью; остались файлы CRDN.')
+    print('CRDN удалён. Приложение и его учётные данные удалены')
 
 
 def main():
@@ -647,12 +680,13 @@ def main():
         parser.error('--release cannot be combined with --test-archive')
     if args.recover:
         args.operation = 'recover'
+    print('Проверка сервера…', flush=True)
     platform_check()
     with open('/run/lock/crdn-managed.lock', 'a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if JOURNAL.exists():
             if args.operation != 'recover':
-                raise ValueError('Interrupted file transaction; run install.sh --recover first')
+                raise ValueError('Изменение файлов прервано. Сначала выполните install.sh --recover из полного комплекта выпуска.')
             tx = Transaction()
             tx.entries = json.loads(JOURNAL.read_text())
             completed = json.loads(STATE.read_text()) if STATE.exists() else None
@@ -692,27 +726,29 @@ def main():
             print('Recovery finished; incomplete installations require removal before reinstalling.')
             return
         if state and state.get('pending'):
-            raise ValueError('Interrupted activation; run install.sh --recover')
+            raise ValueError('Переключение версии прервано. Требуется install.sh --recover из полного комплекта выпуска.')
         if args.operation == 'uninstall':
             if state:
                 uninstall(state)
             else:
-                print('CRDN is not installed')
+                print('CRDN не установлен. Удалять нечего.')
             return
         if state:
             if state['phase'] != 'installed':
-                raise ValueError('Incomplete installation: recover then uninstall before retry')
+                raise ValueError('Найдена незавершённая установка. Перед повтором требуется восстановление и удаление её ресурсов.')
             owned_check(state)
             if args.operation == 'install':
                 if args.domain and args.domain != state['domain']:
-                    raise ValueError('Existing installation uses a different domain')
-                print('Already installed: https://' + state['domain'])
+                    raise ValueError('У существующей установки другой домен.')
+                print('CRDN уже установлен. Адрес панели: https://' + state['domain'])
                 return
             run('systemctl', 'is-active', UNIT)
             activate(source(args), state)
-            print('Updated; account, domain and configuration preserved')
+            state['version'] = args.release
+            save(STATE, state)
+            update_result(state)
         elif args.operation == 'update':
-            raise ValueError('CRDN is not installed')
+            raise ValueError('CRDN не установлен. Сначала выполните установку.')
         else:
             install(args, source(args))
 
@@ -725,4 +761,14 @@ if __name__ == '__main__':
     try:
         main()
     except (Exception, KeyboardInterrupt) as error:
-        raise SystemExit('CRDN: ' + str(error))
+        print('Операция не завершена. Успех не подтверждён.', file=sys.stderr)
+        if JOURNAL.exists(): print('Есть журнал незавершённой операции; требуется восстановление перед повтором.', file=sys.stderr)
+        elif STATE.exists():
+            try: saved = json.loads(STATE.read_text())
+            except (OSError, ValueError): saved = {}
+            if saved.get('pending'): print('Переключение версии не завершено; требуется восстановление.', file=sys.stderr)
+            elif saved.get('phase') == 'installed': print('Состояние установки сохранено. Завершение операции не подтверждено; данные входа не сбрасывались.', file=sys.stderr)
+            elif saved.get('phase') == 'removed': print('Служба отключена; удаление ресурсов не завершено. Повторите удаление.', file=sys.stderr)
+            else: print('Остались ресурсы незавершённой установки; их состояние сохранено для восстановления/удаления.', file=sys.stderr)
+        else: print('Активная установка этой операцией не подтверждена.', file=sys.stderr)
+        raise SystemExit('Причина: ' + str(error))
