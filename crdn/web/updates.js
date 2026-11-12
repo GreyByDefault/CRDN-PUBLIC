@@ -36,6 +36,11 @@
     offer.hidden = !value.available;
     if (value.available) offer.textContent = 'Доступна ' + value.available + ' · Обновить';
     note.textContent = value.checking ? 'Проверка выпусков…' : value.check_error ? 'Источники временно недоступны. Панель продолжает работать.' : value.channel === 'rc' ? 'Включён тестовый канал RC.' : 'Канал стабильных выпусков.';
+    if (value.enabled === false) {
+      note.textContent = value.message || 'Системный механизм обновления временно недоступен.'; manual.disabled = true;
+      if (submitted) progress.textContent = 'Системный механизм перезапускается. Ожидание статуса обновления…';
+      return;
+    }
     manual.disabled = value.checking;
     const operation = value.operation;
     if (!operation) return;
@@ -76,13 +81,14 @@
     manual.disabled = true;
     try { render(await api('/check', true)); }
     catch (error) { note.textContent = error.message; }
-    finally { if (!state?.checking) manual.disabled = false; }
+    finally { manual.disabled = state?.enabled === false || Boolean(state?.checking); }
   });
   async function poll() {
     try {
       const value = await api(''); disconnectedAt = null;
       // The root worker's success must also match the running HTTP release.
       render(value);
+      if (value.enabled === false) return;
       if (submitted && (!value.operation || (!busy.has(value.operation.phase) && value.operation.target !== target))) {
         submitted = false; remembered(null); window.crdnUpdateActive = false; cancel.disabled = false; confirm.disabled = false;
         progress.textContent = 'Запуск обновления не подтверждён. Проверьте наличие выпуска и повторите запрос.';
