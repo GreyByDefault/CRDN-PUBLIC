@@ -10,7 +10,7 @@ CRDN показывает загрузку процессора, использ�
 
 [GitHub](https://github.com/GreyByDefault/CRDN-PUBLIC) · [Релизы](https://github.com/GreyByDefault/CRDN-PUBLIC/releases)
 
-**Текущий выпуск: v1.0.0-rc.3 — предварительная версия (Pre-release), установщик проходит приёмку. Стабильный v1.0.0 пока не выпущен.**
+**Текущий выпуск: v1.0.0-rc.4 — предварительная версия (Pre-release), установщик проходит приёмку. Стабильный v1.0.0 пока не выпущен.**
 
 ## Как выглядит CRDN
 
@@ -160,19 +160,10 @@ ssh root@203.0.113.10
 Скопируйте установочную команду и выполните её на сервере.
 
 ```sh
-(
-  set -eu
-  crdn_tmp=$(mktemp -d)
-  trap 'rm -rf -- "$crdn_tmp"' EXIT
-  cd "$crdn_tmp"
-  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py
-  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py.sha256 https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py.sha256
-  sha256sum -c crdn-bootstrap.py.sha256
-  python3 ./crdn-bootstrap.py install --release v1.0.0-rc.3
-)
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.4/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.4'
 ```
 
-Вставьте блок целиком в SSH-сеанс. Загрузчик получает полный комплект из официального Release, проверяет SHA-256 и запускает существующий установщик. При ошибке HTTPS или контрольной суммы выполнение прекращается. Ввод домена остаётся интерактивным. Эта команда явно выбирает v1.0.0-rc.3; production HTTPS включён по умолчанию, без ACME staging.
+Вставьте одну строку в SSH-сеанс. Загрузчик получает полный комплект из официального Release, проверяет SHA-256 и запускает существующий установщик. При ошибке HTTPS или контрольной суммы выполнение прекращается. Ввод домена и пароля sudo остаётся интерактивным через /dev/tty, даже когда загрузчик передан через pipe. Эта команда явно выбирает v1.0.0-rc.4; production HTTPS включён по умолчанию, без ACME staging.
 
 После запуска установщик самостоятельно:
 
@@ -181,7 +172,7 @@ ssh root@203.0.113.10
 3. Определяет установленный веб-сервер: Caddy, Nginx или Apache.
 4. Просит указать домен или поддомен для панели.
 5. Проверяет DNS и доступность необходимых сетевых портов.
-6. Скачивает CRDN из официального Release: по умолчанию стабильную версию, в приведённой команде — явно выбранный v1.0.0-rc.3.
+6. Скачивает CRDN из официального Release: по умолчанию стабильную версию, в приведённой команде — явно выбранный v1.0.0-rc.4.
 7. Устанавливает приложение и настраивает его автоматический запуск.
 8. Подключает панель к веб-серверу и настраивает HTTPS.
 9. Проверяет работу приложения и выводит адрес готовой панели.
@@ -229,19 +220,10 @@ CRDN поддерживает Caddy, Nginx и Apache.
 Для обновления используется отдельная команда:
 
 ```sh
-(
-  set -eu
-  crdn_tmp=$(mktemp -d)
-  trap 'rm -rf -- "$crdn_tmp"' EXIT
-  cd "$crdn_tmp"
-  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py
-  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py.sha256 https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py.sha256
-  sha256sum -c crdn-bootstrap.py.sha256
-  python3 ./crdn-bootstrap.py update --release v1.0.0-rc.3
-)
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.4/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.4'
 ```
 
-Блок можно выполнить из любого каталога. Сейчас он явно выбирает rc.3; без `--release v1.0.0-rc.3` загрузчик использует только последний стабильный выпуск и сообщает об ошибке, если его нет.
+Команду можно выполнить из любого каталога. Сейчас он явно выбирает rc.4; без `--release v1.0.0-rc.4` загрузчик использует только последний стабильный выпуск и сообщает об ошибке, если его нет.
 
 При обновлении сохраняются:
 
@@ -268,19 +250,10 @@ CRDN поддерживает Caddy, Nginx и Apache.
 Для удаления программы предусмотрена отдельная команда:
 
 ```sh
-(
-  set -eu
-  crdn_tmp=$(mktemp -d)
-  trap 'rm -rf -- "$crdn_tmp"' EXIT
-  cd "$crdn_tmp"
-  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py
-  curl --fail --location --proto '=https' --proto-redir '=https' -o crdn-bootstrap.py.sha256 https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.3/crdn-bootstrap.py.sha256
-  sha256sum -c crdn-bootstrap.py.sha256
-  python3 ./crdn-bootstrap.py uninstall --release v1.0.0-rc.3
-)
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/v1.0.0-rc.4/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.4'
 ```
 
-Блок работает из любого каталога. Номер выпуска здесь выбирает проверенный комплект инструментов удаления, а не версию удаляемой установки.
+Команда работает из любого каталога. Номер выпуска здесь выбирает проверенный комплект инструментов удаления, а не версию удаляемой установки.
 
 Скрипт останавливает службу, удаляет файлы приложения и созданную для CRDN конфигурацию веб-сервера.
 

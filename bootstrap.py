@@ -20,7 +20,7 @@ API = 'https://api.github.com/repos/GreyByDefault/CRDN-PUBLIC/releases/'
 VERSION = r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?'
 BUNDLE_FILES = ('install.sh', 'update.sh', 'uninstall.sh', 'ops/lifecycle.py',
                 'ops/package.py', 'ops/build_release.py', 'README.md', 'README.en.md',
-                'LICENSE', 'bootstrap.py', 'docs/dashboard.png')
+                'LICENSE', 'bootstrap.py', 'docs/dashboard.png', 'bootstrap.sh')
 LIMIT = 8 * 1024 * 1024
 
 

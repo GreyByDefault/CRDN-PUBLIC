@@ -37,6 +37,9 @@ def build(version, destination):
     package(path)
     loader.write_bytes(content['bootstrap.py'])
     loader.with_suffix('.py.sha256').write_text(hashlib.sha256(loader.read_bytes()).hexdigest() + '  crdn-bootstrap.py\n')
+    shell = destination / 'crdn-bootstrap.sh'
+    shell.write_bytes(content['bootstrap.sh'])
+    shell.with_suffix('.sh.sha256').write_text(hashlib.sha256(shell.read_bytes()).hexdigest() + '  crdn-bootstrap.sh\n')
     with tarfile.open(bundle, 'w:gz') as archive:
         for name, data in content.items():
             member = tarfile.TarInfo('crdn-' + version + '/' + name)
