@@ -10,7 +10,7 @@ No Docker, external monitoring services or heavyweight databases.
 
 [GitHub](https://github.com/GreyByDefault/CRDN-PUBLIC) · [Releases](https://github.com/GreyByDefault/CRDN-PUBLIC/releases)
 
-**Current release: v1.0.0-rc.6 is a Pre-release; the installer is undergoing acceptance testing. Stable v1.0.0 has not been released yet.**
+**Current release: v1.0.0-rc.7 is a Pre-release; the installer is undergoing acceptance testing. Stable v1.0.0 has not been released yet.**
 
 ## What CRDN looks like
 
@@ -160,10 +160,10 @@ Once connected, you can proceed to CRDN installation.
 Copy the installation command and run it on the server.
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.6/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.6'
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.7'
 ```
 
-Paste the single line into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, even when the loader arrives through a pipe. This command explicitly selects v1.0.0-rc.6; production HTTPS is the default, without ACME staging.
+Paste the single line into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, even when the loader arrives through a pipe. This command explicitly selects v1.0.0-rc.7; production HTTPS is the default, without ACME staging.
 
 Once started, the installer:
 
@@ -172,7 +172,7 @@ Once started, the installer:
 3. Detects the installed web server: Caddy, Nginx or Apache.
 4. Asks for the dashboard's domain or subdomain.
 5. Checks DNS and the network ports needed for operation.
-6. Downloads CRDN from an official Release: stable by default, or the explicitly selected v1.0.0-rc.6 in the command above.
+6. Downloads CRDN from an official Release: stable by default, or the explicitly selected v1.0.0-rc.7 in the command above.
 7. Installs the application and configures automatic startup.
 8. Connects the dashboard to the web server and configures HTTPS.
 9. Checks the application and displays the dashboard address.
@@ -207,7 +207,7 @@ After you sign in, a notification will offer to change your username and passwor
 
 Choose **Change** (Изменить) to set your own credentials, or **Cancel** (Отмена) to continue with the defaults.
 
-You can change your username and password later in account settings.
+You can change your username and password later in account settings. Fields appear in this order: current username (read-only), current password, new username, new password and repeat new password. The new username is empty: enter the existing one again to keep it. All password fields have Show/Hide controls and open hidden. Until the original account has been changed for the first time, current credentials are filled with admin/admin even after dismissing the reminder. After the first saved change, the current password must always be entered manually; updates preserve the active credentials.
 
 **We strongly recommend changing the default credentials immediately after installation.**
 
@@ -220,10 +220,10 @@ New versions are published on [GitHub Releases](https://github.com/GreyByDefault
 A separate command is used for updates:
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.6/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.6'
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.7'
 ```
 
-Run the command from any directory. It currently selects rc.6 explicitly; without `--release v1.0.0-rc.6`, the bootstrap uses only the latest stable release and reports an error if none exists.
+Run the command from any directory. It currently selects rc.7 explicitly; without `--release v1.0.0-rc.7`, the bootstrap uses only the latest stable release and reports an error if none exists.
 
 Updates preserve:
 
@@ -250,7 +250,7 @@ Preliminary versions are installed separately, at the user's explicit choice.
 A separate command is provided to remove the application:
 
 UN```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.6/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.6'
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.7/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.7'
 ```
 
 Run the command from any directory. The release number selects the verified removal tools, not the version of the installation to be removed.
@@ -259,7 +259,7 @@ The script stops the service, removes application files and removes the web serv
 
 Other websites, services and applications on the server remain unchanged.
 
-The installer asks for separate confirmation before deleting stored credentials.
+Removal is complete: the application, its configuration and all CRDN-owned user data, including the account, are deleted without a separate question about retaining them. External backups and shared Caddy certificates are preserved. After successful removal, a new installation creates admin/admin.
 
 ## 8. Troubleshooting
 

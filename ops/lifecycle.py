@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import grp
 import re
 import shutil
 import shlex
@@ -31,6 +32,9 @@ STATE = META / 'installation.json'
 JOURNAL = META / 'transaction.json'
 DATA = Path('/var/lib/crdn-managed')
 UNIT = 'crdn-managed.service'
+ACME_WEBROOT = Path('/var/lib/crdn-managed-acme')
+HELPER_DIR = Path('/usr/local/lib/crdn-managed')
+CADDY_SITE_DIR = Path('/etc/caddy/crdn-managed')
 STAGING = 'https://acme-staging-v02.api.letsencrypt.org/directory'
 PRODUCTION = 'https://acme-v02.api.letsencrypt.org/directory'
 LIMIT = 4 * 1024 * 1024
@@ -563,7 +567,17 @@ def uninstall(state):
     for path in ROOT.rglob('*') if ROOT.exists() else []:
         if (path.is_file() or path.is_symlink()) and str(path) not in allowed:
             raise ValueError('Untracked release resource preserved: ' + str(path))
-    delete_data = input('Delete stored CRDN credentials? Type DELETE / удалить данные: ').strip() == 'DELETE'
+    if DATA.is_symlink() or META.is_symlink() or ROOT.is_symlink():
+        raise ValueError('Refusing symlinked installation data/configuration')
+    account = None
+    if (META / 'account.json').exists():
+        account = pwd.getpwnam('crdn-managed')
+        if json.loads((META / 'account.json').read_text()) != {'uid': account.pw_uid} or account.pw_dir != str(DATA) or account.pw_shell != '/usr/sbin/nologin':
+            raise ValueError('Service account changed; manual reconciliation required')
+        group = grp.getgrnam('crdn-managed')
+        if group.gr_gid != account.pw_gid or set(group.gr_mem) - {'crdn-managed'} or any(u.pw_gid == group.gr_gid and u.pw_name != 'crdn-managed' for u in pwd.getpwall()):
+            raise ValueError('Service group is shared; manual reconciliation required')
+    print('Removing CRDN and all its configuration and user data, including credentials.')
     if state['phase'] != 'preparing':
         validate(state['web'])
     previous_phase = state['phase']
@@ -597,20 +611,26 @@ def uninstall(state):
         state['phase'] = 'installed'
         save(STATE, state)
         raise
-    shutil.rmtree(ROOT, ignore_errors=True)
+    if ROOT.exists(): shutil.rmtree(ROOT)
     # Isolated Certbot config belongs exclusively to this installation. Shared Caddy storage is preserved.
     shutil.rmtree(META / 'acme', ignore_errors=True)
-    shutil.rmtree('/var/lib/crdn-managed-acme', ignore_errors=True)
-    for folder in (Path('/usr/local/lib/crdn-managed'), Path('/etc/caddy/crdn-managed')):
+    if ACME_WEBROOT.exists(): shutil.rmtree(ACME_WEBROOT)
+    for folder in (HELPER_DIR, CADDY_SITE_DIR):
         if folder.exists():
             try:
                 folder.rmdir()
             except OSError:
                 pass
-    STATE.unlink()
-    if delete_data:
-        shutil.rmtree(DATA, ignore_errors=True)
-    print('Removed CRDN. Credentials ' + ('deleted.' if delete_data else 'preserved in ' + str(DATA)))
+    if DATA.exists(): shutil.rmtree(DATA)
+    if account is not None:
+        run('userdel', 'crdn-managed')
+        try: grp.getgrnam('crdn-managed')
+        except KeyError: pass
+        else: run('groupdel', 'crdn-managed')
+    # Includes account ownership marker, release manifests and internal backups;
+    # external backups and shared Caddy certificate storage are outside META.
+    if META.exists(): shutil.rmtree(META)
+    print('Removed CRDN, configuration and all user data, including credentials.')
 
 
 def main():

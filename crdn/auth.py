@@ -125,7 +125,8 @@ class AuthStore:
     def public_session(self, session):
         return {'authenticated': session['authenticated'], 'csrf_token': session['csrf'],
                 'username': self.account['username'] if session['authenticated'] else None,
-                'remind_default': session['remind']}
+                'remind_default': session['remind'],
+                'default_credentials': bool(session['authenticated'] and self.account['default'])}
 
     def mutate(self, operation, token, csrf, data, peer):
         with self.lock:

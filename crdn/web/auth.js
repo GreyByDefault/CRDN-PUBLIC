@@ -19,18 +19,22 @@
     return value;
   }
   function showError(node, error) { node.textContent = error.message || 'Нет связи с сервером. Повторите попытку.'; }
+  function bindPasswordToggle(button) {
+    const input = document.getElementById(button.getAttribute('aria-controls'));
+    button.addEventListener('click', () => {
+      const visible = input.type === 'password';
+      input.type = visible ? 'text' : 'password';
+      button.textContent = visible ? 'Скрыть' : 'Показать';
+      button.setAttribute('aria-pressed', String(visible));
+    });
+  }
   const login = document.querySelector('#login-form');
   if (login) {
     const button = login.querySelector('[type="submit"]'), error = document.querySelector('#login-error');
     button.disabled = true;
     try { await loadSession(); button.disabled = false; if (state.authenticated) location.replace('/'); }
     catch (failure) { showError(error, failure); }
-    document.querySelector('#toggle-password').addEventListener('click', (event) => {
-      const input = document.querySelector('#login-password');
-      const visible = input.type === 'password'; input.type = visible ? 'text' : 'password';
-      event.currentTarget.textContent = visible ? 'Скрыть' : 'Показать';
-      event.currentTarget.setAttribute('aria-pressed', String(visible));
-    });
+    bindPasswordToggle(document.querySelector('#toggle-password'));
     login.addEventListener('submit', async (event) => {
       event.preventDefault(); button.disabled = true; error.textContent = '';
       try {
@@ -91,21 +95,31 @@
   dialog.className = 'auth-dialog'; dialog.setAttribute('aria-labelledby', 'account-title');
   dialog.innerHTML = `<button type="button" class="auth-close" aria-label="Закрыть">×</button>
     <h2 id="account-title">Учётная запись</h2><form class="auth-form">
-    <label>Текущий пароль<input name="current_password" type="password" autocomplete="current-password" required maxlength="256"></label>
+    <label>Текущий логин<input name="current_username" readonly autocomplete="off"></label>
+    <label>Текущий пароль<span class="password-field"><input id="account-current-password" aria-label="Текущий пароль" name="current_password" type="password" autocomplete="current-password" required maxlength="256"><button type="button" aria-controls="account-current-password" aria-pressed="false">Показать</button></span></label>
     <label>Новый логин<input name="username" autocomplete="username" required maxlength="64"></label>
-    <label>Новый пароль<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="256"></label>
-    <label>Подтверждение пароля<input name="password_confirm" type="password" autocomplete="new-password" required minlength="8" maxlength="256"></label>
+    <label>Новый пароль<span class="password-field"><input id="account-new-password" aria-label="Новый пароль" name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="256"><button type="button" aria-controls="account-new-password" aria-pressed="false">Показать</button></span></label>
+    <label>Повтор нового пароля<span class="password-field"><input id="account-repeat-password" aria-label="Повтор нового пароля" name="password_confirm" type="password" autocomplete="new-password" required minlength="8" maxlength="256"><button type="button" aria-controls="account-repeat-password" aria-pressed="false">Показать</button></span></label>
     <p class="auth-hint">Пароль: от 8 до 256 символов. Другие активные сессии будут завершены.</p>
     <p class="auth-error" role="alert"></p><div class="auth-controls"><button type="button" class="account-cancel">Отмена</button><button type="submit" class="auth-primary">Сохранить</button></div></form>`;
   document.body.append(notice, dialog);
   const form = dialog.querySelector('form'), error = form.querySelector('.auth-error');
+  const passwordToggles = [...dialog.querySelectorAll('[aria-controls]')];
+  passwordToggles.forEach(bindPasswordToggle);
   async function dismiss() {
     notice.close();
     try { await post('dismiss'); state.remind_default = false; } catch { /* A later login will remind again. */ }
   }
-  function openAccount() {
-    form.reset(); form.elements.username.value = state.username; error.textContent = '';
-    dialog.showModal();
+  async function openAccount() {
+    try { await loadSession(); } catch { return; }
+    if (!state.authenticated) { location.replace('/login'); return; }
+    form.reset(); form.elements.current_username.value = state.username;
+    form.elements.current_password.value = state.default_credentials ? 'admin' : '';
+    for (const button of passwordToggles) {
+      document.getElementById(button.getAttribute('aria-controls')).type = 'password';
+      button.textContent = 'Показать'; button.setAttribute('aria-pressed', 'false');
+    }
+    error.textContent = ''; dialog.showModal();
   }
   function closeAccount() { dialog.close(); form.reset(); error.textContent = ''; }
   notice.querySelector('.auth-close').onclick = dismiss;
