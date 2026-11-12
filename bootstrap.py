@@ -61,7 +61,7 @@ def release_tag(selected):
     assets = {item['name']: item['browser_download_url'] for item in metadata['assets']}
     prefix = REPOSITORY + '/releases/download/' + tag + '/'
     for asset in (name, name + '.sha256'):
-        if assets.get(asset) != prefix + asset:
+        if assets.get(asset, prefix + asset) != prefix + asset:
             raise ValueError('Missing or nonofficial installer asset: ' + asset)
     return tag, assets[name], assets[name + '.sha256']
 

@@ -10,7 +10,7 @@ No Docker, external monitoring services or heavyweight databases.
 
 [GitHub](https://github.com/GreyByDefault/CRDN-PUBLIC) · [Releases](https://github.com/GreyByDefault/CRDN-PUBLIC/releases)
 
-**Current release: v1.0.0-rc.5 is a Pre-release; the installer is undergoing acceptance testing. Stable v1.0.0 has not been released yet.**
+**Current release: v1.0.0-rc.6 is a Pre-release; the installer is undergoing acceptance testing. Stable v1.0.0 has not been released yet.**
 
 ## What CRDN looks like
 
@@ -160,10 +160,10 @@ Once connected, you can proceed to CRDN installation.
 Copy the installation command and run it on the server.
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.5/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.5'
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.6/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.6'
 ```
 
-Paste the single line into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, even when the loader arrives through a pipe. This command explicitly selects v1.0.0-rc.5; production HTTPS is the default, without ACME staging.
+Paste the single line into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, even when the loader arrives through a pipe. This command explicitly selects v1.0.0-rc.6; production HTTPS is the default, without ACME staging.
 
 Once started, the installer:
 
@@ -172,7 +172,7 @@ Once started, the installer:
 3. Detects the installed web server: Caddy, Nginx or Apache.
 4. Asks for the dashboard's domain or subdomain.
 5. Checks DNS and the network ports needed for operation.
-6. Downloads CRDN from an official Release: stable by default, or the explicitly selected v1.0.0-rc.5 in the command above.
+6. Downloads CRDN from an official Release: stable by default, or the explicitly selected v1.0.0-rc.6 in the command above.
 7. Installs the application and configures automatic startup.
 8. Connects the dashboard to the web server and configures HTTPS.
 9. Checks the application and displays the dashboard address.
@@ -220,10 +220,10 @@ New versions are published on [GitHub Releases](https://github.com/GreyByDefault
 A separate command is used for updates:
 
 ```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.5/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.5'
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.6/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.6'
 ```
 
-Run the command from any directory. It currently selects rc.5 explicitly; without `--release v1.0.0-rc.5`, the bootstrap uses only the latest stable release and reports an error if none exists.
+Run the command from any directory. It currently selects rc.6 explicitly; without `--release v1.0.0-rc.6`, the bootstrap uses only the latest stable release and reports an error if none exists.
 
 Updates preserve:
 
@@ -250,7 +250,7 @@ Preliminary versions are installed separately, at the user's explicit choice.
 A separate command is provided to remove the application:
 
 UN```sh
-bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.5/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.5'
+bash -o pipefail -c 'curl --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.6/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.6'
 ```
 
 Run the command from any directory. The release number selects the verified removal tools, not the version of the installation to be removed.
