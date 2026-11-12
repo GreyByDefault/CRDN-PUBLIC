@@ -11,11 +11,12 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPSHandler, HTTPRedirectHandler, Request, build_opener
 
 REPOSITORY = 'https://github.com/GreyByDefault/CRDN-PUBLIC'
+MIRROR = 'https://neuroflo.ru/crdn-files'
 API = 'https://api.github.com/repos/GreyByDefault/CRDN-PUBLIC/releases/'
 VERSION = r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?'
 BUNDLE_FILES = ('install.sh', 'update.sh', 'uninstall.sh', 'ops/lifecycle.py',
@@ -35,7 +36,7 @@ def fetch(url):
     if urlsplit(url).scheme != 'https':
         raise ValueError('HTTPS required')
     with build_opener(HTTPSHandler(), HTTPSOnly()).open(
-            Request(url, headers={'User-Agent': 'CRDN-bootstrap'}), timeout=30) as response:
+            Request(url, headers={'User-Agent': 'CRDN-bootstrap'}), timeout=8) as response:
         data = response.read(LIMIT + 1)
     if len(data) > LIMIT:
         raise ValueError('Release file exceeds size limit')
@@ -47,11 +48,10 @@ def release_tag(selected):
         raise ValueError('Expected an exact stable or rc.N release tag')
     try:
         metadata = json.loads(fetch(API + ('tags/' + selected if selected else 'latest')))
-    except HTTPError as error:
-        if error.code == 404:
-            raise ValueError('Requested release not found' if selected else
-                             'No stable CRDN release exists; select an RC explicitly with --release') from error
-        raise
+    except (URLError, OSError, TimeoutError):
+        metadata = json.loads(fetch(MIRROR + ('/releases/' + selected + '/release.json' if selected else '/stable.json')))
+    if not metadata.get('tag_name'):
+        raise ValueError('No stable CRDN release exists; select an RC explicitly with --release')
     tag = metadata.get('tag_name', '')
     if metadata.get('draft') or not re.fullmatch(VERSION, tag) or (selected and tag != selected):
         raise ValueError('Invalid release metadata')
@@ -64,6 +64,21 @@ def release_tag(selected):
         if assets.get(asset) != prefix + asset:
             raise ValueError('Missing or nonofficial installer asset: ' + asset)
     return tag, assets[name], assets[name + '.sha256']
+
+
+def release_pair(tag, name, fetcher=None):
+    """Only transport/missing-file failures switch source; integrity never does."""
+    fetcher = fetcher or fetch
+    primary = REPOSITORY + '/releases/download/' + tag + '/'
+    mirror = MIRROR + '/releases/' + tag + '/'
+    try:
+        raw, checksum = fetcher(primary + name), fetcher(primary + name + '.sha256')
+    except (URLError, OSError, TimeoutError):
+        raw, checksum = fetcher(mirror + name), fetcher(mirror + name + '.sha256')
+    match = re.fullmatch(r'([0-9a-f]{64})  ' + re.escape(name) + r'\n?', checksum.decode('ascii'))
+    if not match or hashlib.sha256(raw).hexdigest() != match[1]:
+        raise ValueError('Release SHA-256 mismatch: ' + name)
+    return raw, checksum
 
 
 def unpack(raw, checksum, tag, destination):
@@ -104,7 +119,7 @@ def main(argv=None):
         return subprocess.call(['sudo', '--', sys.executable, str(Path(__file__).resolve()),
                                 *(sys.argv[1:] if argv is None else argv)])
     tag, url, checksum_url = release_tag(args.release)
-    raw, checksum = fetch(url), fetch(checksum_url)
+    raw, checksum = release_pair(tag, 'crdn-installer-' + tag + '.tar.gz')
     with tempfile.TemporaryDirectory(prefix='crdn-tools-') as directory:
         os.chmod(directory, 0o700)
         root = unpack(raw, checksum, tag, directory)

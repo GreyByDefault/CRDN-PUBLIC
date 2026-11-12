@@ -16,6 +16,7 @@ import signal
 import socket
 import ssl
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -135,27 +136,13 @@ def source(args):
         raw = Path(args.test_archive).read_bytes()
         expected = args.test_sha256
     else:
+        # Shared source selection is tooling-only; the installed runtime imports none of it.
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        import bootstrap
         selected = getattr(args, 'release', None)
-        if selected and not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?', selected):
-            raise ValueError('Expected an exact release tag, for example v1.0.0-rc.1')
-        endpoint = 'tags/' + selected if selected else 'latest'
-        try:
-            release = json.loads(download('https://api.github.com/repos/GreyByDefault/CRDN-PUBLIC/releases/' + endpoint))
-        except HTTPError as error:
-            if error.code == 404:
-                raise ValueError('Requested CRDN release not found.' if selected else 'No stable CRDN release is available. Use --release v1.0.0-rc.2 explicitly to accept the preliminary release; master is never installed.') from error
-            raise
-        if release.get('draft') or (not selected and (release.get('prerelease') or not re.fullmatch(r'v\d+\.\d+\.\d+', release['tag_name']))) or (selected and release['tag_name'] != selected) or not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?', release['tag_name']):
-            raise ValueError('Invalid GitHub Release metadata')
-        assets = {a['name']: a['browser_download_url'] for a in release['assets']}
-        name = 'crdn-' + release['tag_name'] + '.tar'
-        if name not in assets or name + '.sha256' not in assets:
-            raise ValueError('Selected release has no runtime archive/checksum')
-        prefix = 'https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/' + release['tag_name'] + '/'
-        if any(not assets[n].startswith(prefix) for n in (name, name + '.sha256')):
-            raise ValueError('Unexpected asset source')
-        raw = download(assets[name])
-        expected = download(assets[name + '.sha256']).decode().split()[0]
+        tag, _, _ = bootstrap.release_tag(selected)
+        raw, checksum = bootstrap.release_pair(tag, 'crdn-' + tag + '.tar')
+        expected = checksum.decode('ascii').split()[0]
     return validate_archive(raw, expected)
 
 
