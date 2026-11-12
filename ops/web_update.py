@@ -83,11 +83,12 @@ def latest():
         tag = item.get('tag_name')
         if not tag or item.get('draft'):
             continue
-        key = version(tag)
+        try: key = version(tag)
+        except ValueError: continue
         if not rc and (not key[3] or item.get('prerelease')):
             continue
         if item.get('prerelease', False) != (not key[3]):
-            raise ValueError('Inconsistent release channel')
+            continue
         allowed.append(tag)
     return max(allowed, key=version) if allowed else None
 
