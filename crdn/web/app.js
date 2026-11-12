@@ -273,7 +273,7 @@
     const timeout = setTimeout(() => controller.abort(), 6000);
     try {
       const response = await fetch('/api/metrics', { cache: 'no-store', signal: controller.signal });
-      if (response.status === 401) { location.replace('/login'); return; }
+      if (response.status === 401) { if (!window.crdnUpdateActive) location.replace('/login'); return; }
       if (!response.ok) throw new Error('Metrics unavailable');
       const data = await response.json();
       validate(data);

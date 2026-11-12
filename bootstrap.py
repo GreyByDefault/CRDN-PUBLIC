@@ -21,7 +21,7 @@ API = 'https://api.github.com/repos/GreyByDefault/CRDN-PUBLIC/releases/'
 VERSION = r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?'
 BUNDLE_FILES = ('install.sh', 'update.sh', 'uninstall.sh', 'ops/lifecycle.py',
                 'ops/package.py', 'ops/build_release.py', 'README.md', 'README.en.md',
-                'LICENSE', 'bootstrap.py', 'docs/dashboard.png', 'bootstrap.sh')
+                'LICENSE', 'ops/web_update.py', 'bootstrap.py', 'docs/dashboard.png', 'bootstrap.sh')
 LIMIT = 8 * 1024 * 1024
 
 
@@ -114,6 +114,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=('install', 'update', 'uninstall'))
     parser.add_argument('--release', help='Exact tool/runtime release; required to opt into a Pre-release')
+    parser.add_argument('--enable-rc-updates', action='store_true')
     parser.add_argument('--domain', help='Optional; otherwise installer asks interactively')
     args = parser.parse_args(argv)
     if args.release and not re.fullmatch(VERSION, args.release):
@@ -131,6 +132,8 @@ def main(argv=None):
         if args.operation != 'uninstall':
             # Pin the runtime to the release whose complete tool bundle was verified.
             command += ['--release', tag]
+        if args.enable_rc_updates:
+            command += ['--enable-rc-updates']
         if args.domain:
             command += ['--domain', args.domain]
         return subprocess.call(command)

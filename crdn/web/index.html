@@ -3,10 +3,11 @@
 <head>
  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
  <meta name="color-scheme" content="dark"><title>CRDN — Server Monitor</title>
- <link rel="icon" type="image/x-icon" href="/favicon.ico"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/auth.css"><script src="/auth.js" defer></script><script src="/app.js" defer></script>
+ <link rel="icon" type="image/x-icon" href="/favicon.ico"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/auth.css"><script src="/auth.js" defer></script><script src="/updates.js" defer></script><script src="/app.js" defer></script>
 </head>
 <body><main>
  <header class="page-header"><div class="identity"><h1>CRDN<span>.</span></h1><div class="brand">NEUROFLO<span>SERVER MONITOR</span></div></div>
+ <div class="version-block"><span id="current-version">Текущая версия: …</span><button id="update-offer" class="update-offer" type="button" hidden></button></div>
  <div class="header-actions"><div class="connection"><p id="connection" role="status" data-state="waiting">Подключение…</p><span id="updated">Ожидание первого снимка</span></div><div class="account-actions"><button id="account-button" class="auth-button" type="button">Учётная запись</button><button id="logout-button" class="auth-button" type="button">Выйти</button></div></div></header>
  <div class="dashboard">
  <section class="card cpu-card" aria-labelledby="cpu-title">
@@ -47,6 +48,7 @@
   <div class="tcp"><span>Установленные TCP-соединения</span><strong id="network-tcp">—</strong></div>
  </section>
  </div>
- <footer><span>Локальный мониторинг · обновление ≈ 2 с</span><span>История 5 минут · только наблюдение</span></footer>
+ <footer><span>Локальный мониторинг · обновление ≈ 2 с</span><span>История 5 минут · только наблюдение</span> <details class="update-tools"><summary>Обновления</summary><div class="update-tools-panel"><button id="update-check" class="auth-button" type="button">Проверить обновления</button><span id="update-check-note" role="status"></span></div></details></footer>
+ <dialog id="update-dialog" class="auth-dialog" aria-labelledby="update-title"><h2 id="update-title"></h2><p>Панель ненадолго перезапустится. Данные входа и настройки сохранятся</p><p id="update-progress" role="status" aria-live="polite"></p><a id="update-login" href="/login" hidden>Войти снова</a><div class="auth-controls"><button id="update-cancel" type="button">Отмена</button><button id="update-confirm" class="auth-primary" type="button">Обновить</button></div></dialog>
  <noscript>Для получения показателей включите JavaScript в браузере.</noscript>
 </main></body></html>

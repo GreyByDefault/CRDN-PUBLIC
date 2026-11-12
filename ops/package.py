@@ -9,10 +9,10 @@ import tarfile
 
 FILES = ('crdn/__init__.py', 'crdn/api.py', 'crdn/metrics.py',
          'crdn/web/favicon.ico', 'crdn/web/index.html', 'crdn/web/style.css', 'crdn/web/app.js',
-         'crdn/auth.py', 'crdn/web/login.html', 'crdn/web/auth.css', 'crdn/web/auth.js')
+         'crdn/updates.py', 'crdn/web/updates.js', 'crdn/auth.py', 'crdn/web/login.html', 'crdn/web/auth.css', 'crdn/web/auth.js')
 
 
-def package(destination):
+def package(destination, version=None):
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     if not re.fullmatch(r'[0-9a-f]{40}', sha):
         raise ValueError('Invalid commit')
@@ -28,6 +28,9 @@ def package(destination):
             compile(data, name, 'exec')
         content[name] = data
     content['release-id'] = (sha + '\n').encode()
+    if version:
+        if not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?', version): raise ValueError('Invalid release version')
+        content['release-version'] = (version + '\n').encode()
     with tarfile.open(destination, 'w:') as archive:
         for name, data in content.items():
             item = tarfile.TarInfo(name)

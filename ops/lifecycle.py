@@ -148,7 +148,10 @@ def source(args):
         raw, checksum = bootstrap.release_pair(tag, 'crdn-' + tag + '.tar')
         expected = checksum.decode('ascii').split()[0]
         args.release = tag
-    return validate_archive(raw, expected)
+    content = validate_archive(raw, expected)
+    if not args.test_archive and content.get('release-version') != (args.release + '\n').encode():
+        raise ValueError('Runtime version differs from selected release')
+    return content
 
 
 def validate_archive(raw, expected):
@@ -159,11 +162,13 @@ def validate_archive(raw, expected):
         total = 0
         for member in archive:
             total += member.size
-            if member.name not in {*FILES, 'release-id'} or member.name in content or not member.isfile() or member.size < 0 or total > LIMIT:
+            if member.name not in {*FILES, 'release-id', 'release-version'} or member.name in content or not member.isfile() or member.size < 0 or total > LIMIT:
                 raise ValueError('Unsafe archive entry')
             content[member.name] = archive.extractfile(member).read()
-    if set(content) != {*FILES, 'release-id'} or not re.fullmatch(rb'[0-9a-f]{40}\n', content['release-id']):
+    if set(content) - {'release-version'} != {*FILES, 'release-id'} or not re.fullmatch(rb'[0-9a-f]{40}\n', content['release-id']):
         raise ValueError('Incomplete/invalid runtime')
+    if 'release-version' in content and not re.fullmatch(rb'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?\n', content['release-version']):
+        raise ValueError('Invalid installed version')
     for name, data in content.items():
         if name.endswith('.py'):
             compile(data, name, 'exec')
@@ -395,7 +400,7 @@ def switch(target):
 
 
 def activate(content, state):
-    candidate = ROOT / 'releases' / content['release-id'].decode().strip()
+    candidate = ROOT / 'releases' / (content['release-id'].decode().strip() + ('-' + content['release-version'].decode().strip() if 'release-version' in content else ''))
     if candidate.exists():
         if any(not (candidate / n).is_file() or (candidate / n).read_bytes() != d for n, d in content.items()):
             raise ValueError('Existing release differs')
@@ -410,7 +415,7 @@ def activate(content, state):
     probe(candidate, state['domain'])
     old = str((ROOT / 'current').resolve()) if (ROOT / 'current').is_symlink() else None
     # Persist activation intent before switching for recovery after SIGKILL/power loss.
-    state['pending'] = dict(old=old, new=str(candidate))
+    state['pending'] = dict(old=old, new=str(candidate), version=state.get('version'))
     save(STATE, state)
     try:
         switch(candidate)
@@ -419,9 +424,11 @@ def activate(content, state):
         health(state['port'])
         run('systemctl', 'is-active', '--quiet', UNIT)
         state['active'] = str(candidate)
+        if 'release-version' in content: state['version'] = content['release-version'].decode().strip()
         state.pop('pending')
         save(STATE, state)
     except BaseException:
+        before_version = state.get('pending', {}).get('version')
         if old:
             switch(old)
             run('systemctl', 'restart', UNIT)
@@ -429,6 +436,8 @@ def activate(content, state):
         else:
             run('systemctl', 'stop', UNIT, check=False)
             (ROOT / 'current').unlink(missing_ok=True)
+        state['active'] = old
+        state['version'] = before_version
         state.pop('pending', None)
         save(STATE, state)
         raise
@@ -439,6 +448,97 @@ def owned_check(state):
         p = Path(name)
         if p.is_symlink() or not p.is_file() or digest(p.read_bytes()) != expected:
             raise ValueError('Owned file was changed; manual reconciliation required: ' + name)
+
+
+UPDATER_CODE = Path('/usr/local/lib/crdn-managed-updater')
+UPDATER_DATA = Path('/var/lib/crdn-updater')
+UPDATER_RUN = Path('/run/crdn-updater')
+
+
+def updater_resources(enable_rc=False):
+    tools = Path(__file__).resolve().parents[1]
+    resources = {str(UPDATER_CODE / name): (tools / name).read_bytes() for name in
+                 ('bootstrap.py', 'ops/web_update.py')}
+    for name in ('lifecycle.py', 'package.py'):
+        resources[str(UPDATER_CODE / 'ops' / name)] = (tools / 'ops' / name).read_bytes()
+    # A single root controller accepts bounded fixed requests over a local socket;
+    # a separate oneshot performs updates independently of controller/API restarts.
+    for unit_name, worker in (('crdn-updater.service', False), ('crdn-managed-update.service', True)):
+        text = f'''[Unit]
+Description=CRDN {'verified update worker' if worker else 'local update controller'}
+After=network.target
+[Service]
+Type={'oneshot' if worker else 'simple'}
+User=root
+Group=crdn-managed
+UMask=0077
+ExecStart=/usr/bin/python3 -B {UPDATER_CODE}/ops/web_update.py{' --run' if worker else ''}
+Environment=PYTHONPATH={UPDATER_CODE}
+StateDirectory=crdn-updater
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+PrivateTmp=yes
+{'ProtectSystem=strict' if not worker else ''}
+{'ProtectHome=yes' if not worker else ''}
+RuntimeDirectory=crdn-updater
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+TimeoutStartSec={'600' if worker else '30'}
+TimeoutStopSec=20
+KillMode=control-group
+{'Restart=on-failure' if not worker else ''}
+[Install]
+WantedBy=multi-user.target
+'''
+        resources['/etc/systemd/system/' + unit_name] = text.encode()
+    config = META / 'update-channel.json'
+    if enable_rc or not config.exists():
+        resources[str(config)] = json.dumps({'channel': 'rc' if enable_rc else 'stable'}).encode()
+    return resources
+
+
+def managed_update(content, state, args):
+    import copy
+    previous = copy.deepcopy(state)
+    tx = Transaction()
+    had_updater = '/etc/systemd/system/crdn-updater.service' in state['files']
+    state['updater_previous_files'] = dict(state['files'])
+    state['updater_staging'] = True
+    save(STATE, state)
+    try:
+        for name, data in updater_resources(args.enable_rc_updates).items():
+            path = Path(name)
+            if path.exists() and name not in state['files']:
+                raise ValueError('Неучтённый ресурс веб-обновления: ' + name)
+            tx.write(path, data, 0o600 if path.parent == META else 0o644)
+            state['files'][name] = digest(data)
+        # Parent directories are executable/readable but never writable by the web user.
+        for folder in (UPDATER_CODE, UPDATER_CODE / 'ops'):
+            folder.chmod(0o755)
+        state['updater_staging'] = False
+        save(STATE, state)
+        run('systemctl', 'daemon-reload')
+        run('systemctl', 'enable', '--now', 'crdn-updater.service')
+        run('systemctl', 'restart', 'crdn-updater.service')
+        activate(content, state)
+        state.pop('updater_previous_files', None); state.pop('updater_staging', None)
+        save(STATE, state)
+        tx.commit()
+    except BaseException:
+        # activate handles its own application rollback. Preserve manifests of
+        # candidates for safe removal, restore only the resources we wrote.
+        if previous.get('active') and str((ROOT / 'current').resolve()) != previous['active']:
+            switch(previous['active'])
+            run('systemctl', 'restart', UNIT)
+            health(previous['port'])
+        tx.rollback()
+        manifests = state.get('releases', {})
+        state.clear(); state.update(previous); state['releases'] = manifests
+        save(STATE, state)
+        run('systemctl', 'daemon-reload')
+        if had_updater: run('systemctl', 'restart', 'crdn-updater.service', check=False)
+        else: run('systemctl', 'disable', '--now', 'crdn-updater.service', check=False)
+        raise
 
 
 def installation_result(domain, new_account):
@@ -536,6 +636,13 @@ ExecStart=/usr/bin/certbot renew --quiet --config-dir {acme}/config --work-dir {
             write('/etc/systemd/system/crdn-managed-renew.service', renew)
             write('/etc/systemd/system/crdn-managed-renew.timer', '[Unit]\nDescription=CRDN certificate renewal\n[Timer]\nOnCalendar=daily\nRandomizedDelaySec=3600\nPersistent=true\n[Install]\nWantedBy=timers.target\n')
         write('/etc/systemd/system/' + UNIT, unit(domain, port))
+        for resource, data in updater_resources(args.enable_rc_updates).items():
+            if Path(resource).exists(): raise ValueError('Ресурс веб-обновления уже занят: ' + resource)
+            write(resource, data.decode())
+        for folder in (UPDATER_CODE, UPDATER_CODE / 'ops'):
+            folder.chmod(0o755)
+        run('systemctl', 'daemon-reload')
+        run('systemctl', 'enable', '--now', 'crdn-updater.service')
         run('systemctl', 'daemon-reload')
         ROOT.mkdir(exist_ok=True)
         activate(content, state)
@@ -560,6 +667,7 @@ ExecStart=/usr/bin/certbot renew --quiet --config-dir {acme}/config --work-dir {
         save(STATE, state)
         tx.commit()
     except BaseException:
+        run('systemctl', 'disable', '--now', 'crdn-updater.service', check=False)
         run('systemctl', 'disable', '--now', UNIT, check=False)
         run('systemctl', 'disable', '--now', 'crdn-managed-renew.timer', check=False)
         state['files'] = {}
@@ -597,6 +705,12 @@ def uninstall(state):
             raise ValueError('Untracked release resource preserved: ' + str(path))
     if DATA.is_symlink() or META.is_symlink() or ROOT.is_symlink():
         raise ValueError('Refusing symlinked installation data/configuration')
+    for folder in (UPDATER_CODE, UPDATER_DATA, UPDATER_RUN):
+        if folder.is_symlink(): raise ValueError('Вспомогательный каталог заменён ссылкой; требуется ручная проверка.')
+    if UPDATER_CODE.exists():
+        for path in UPDATER_CODE.rglob('*'):
+            if path.is_symlink() or (path.is_file() and str(path) not in state['files']):
+                raise ValueError('Неучтённый файл веб-обновления сохранён: ' + str(path))
     account = None
     if (META / 'account.json').exists():
         account = pwd.getpwnam('crdn-managed')
@@ -605,6 +719,8 @@ def uninstall(state):
         group = grp.getgrnam('crdn-managed')
         if group.gr_gid != account.pw_gid or set(group.gr_mem) - {'crdn-managed'} or any(u.pw_gid == group.gr_gid and u.pw_name != 'crdn-managed' for u in pwd.getpwall()):
             raise ValueError('Service group is shared; manual reconciliation required')
+    run('systemctl', 'disable', '--now', 'crdn-updater.service', check=False)
+    run('systemctl', 'stop', 'crdn-managed-update.service', check=False)
     print('Удаление CRDN, конфигурации и всех его пользовательских данных, включая учётную запись…', flush=True)
     if state['phase'] != 'preparing':
         validate(state['web'])
@@ -651,6 +767,8 @@ def uninstall(state):
                 folder.rmdir()
             except OSError:
                 pass
+    for folder in (UPDATER_CODE, UPDATER_DATA, UPDATER_RUN):
+        if folder.exists(): shutil.rmtree(folder)
     if DATA.exists(): shutil.rmtree(DATA)
     if account is not None:
         run('userdel', 'crdn-managed')
@@ -670,6 +788,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=('install', 'update', 'uninstall', 'recover'))
     parser.add_argument('--domain')
+    parser.add_argument('--enable-rc-updates', action='store_true', help='Explicitly opt into the RC web-update test channel')
     parser.add_argument('--release', help='Explicit GitHub Release tag; permits this exact Pre-release only')
     parser.add_argument('--recover', action='store_true', help='Recover interrupted operation before retry')
     parser.add_argument('--test-archive', help='Explicit local runtime fixture; never selected automatically')
@@ -690,11 +809,15 @@ def main():
             tx = Transaction()
             tx.entries = json.loads(JOURNAL.read_text())
             completed = json.loads(STATE.read_text()) if STATE.exists() else None
-            if completed and completed['phase'] == 'installed' and not completed.get('pending'):
+            if completed and completed['phase'] == 'installed' and not completed.get('pending') and not completed.get('updater_staging'):
                 owned_check(completed)
                 tx.commit()
             else:
                 tx.rollback()
+                if completed and 'updater_previous_files' in completed:
+                    completed['files'] = completed.pop('updater_previous_files')
+                    completed.pop('updater_staging', None)
+                    save(STATE, completed)
             if STATE.exists():
                 recovered = json.loads(STATE.read_text())
                 if recovered['phase'] == 'removing':
@@ -717,10 +840,18 @@ def main():
                 else:
                     run('systemctl', 'stop', UNIT, check=False)
                     (ROOT / 'current').unlink(missing_ok=True)
+                state['active'] = old
+                state['version'] = state['pending'].get('version', state.get('version'))
                 state.pop('pending')
                 save(STATE, state)
             if state:
+                state.pop('updater_previous_files', None); state.pop('updater_staging', None)
+                save(STATE, state)
                 run('systemctl', 'daemon-reload')
+                if '/etc/systemd/system/crdn-updater.service' in state['files']:
+                    run('systemctl', 'restart', 'crdn-updater.service')
+                else:
+                    run('systemctl', 'disable', '--now', 'crdn-updater.service', check=False)
                 if state['phase'] != 'preparing':
                     reload(state['web'])
             print('Recovery finished; incomplete installations require removal before reinstalling.')
@@ -743,7 +874,8 @@ def main():
                 print('CRDN уже установлен. Адрес панели: https://' + state['domain'])
                 return
             run('systemctl', 'is-active', UNIT)
-            activate(source(args), state)
+            content = source(args)
+            managed_update(content, state, args)
             state['version'] = args.release
             save(STATE, state)
             update_result(state)

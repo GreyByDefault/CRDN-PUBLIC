@@ -128,6 +128,14 @@ class AuthStore:
                 'remind_default': session['remind'],
                 'default_credentials': bool(session['authenticated'] and self.account['default'])}
 
+    def authorize_update(self, token, csrf):
+        with self.lock:
+            _, session = self.session(token)
+            if not session or not session['authenticated']:
+                raise AuthError(401, 'Требуется вход.')
+            if not isinstance(csrf, str) or not hmac.compare_digest(csrf.encode(), session['csrf'].encode()):
+                raise AuthError(403, 'Сессия устарела. Обновите страницу.')
+
     def mutate(self, operation, token, csrf, data, peer):
         with self.lock:
             _, session = self.session(token)

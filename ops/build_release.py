@@ -34,7 +34,7 @@ def build(version, destination):
     loader = destination / 'crdn-bootstrap.py'
     if loader.exists() or loader.with_suffix('.py.sha256').exists():
         raise ValueError('Bootstrap output already exists')
-    package(path)
+    package(path, version)
     loader.write_bytes(content['bootstrap.py'])
     loader.with_suffix('.py.sha256').write_text(hashlib.sha256(loader.read_bytes()).hexdigest() + '  crdn-bootstrap.py\n')
     shell = destination / 'crdn-bootstrap.sh'

@@ -5,11 +5,19 @@ crdn_main() {
   operation=${1:-}
   case "$operation" in install|update|uninstall) shift;; *) echo 'Usage: bootstrap.sh install|update|uninstall [--release VERSION]' >&2; return 2;; esac
   version=
-  if [ "$#" -ne 0 ]; then
-    [ "$#" -eq 2 ] && [ "$1" = --release ] || return 2
-    printf '%s\n' "$2" | LC_ALL=C grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$' || return 2
-    version=$2
-  fi
+  rc_option=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --release)
+        [ -z "$version" ] && [ "$#" -ge 2 ] || return 2
+        printf '%s\n' "$2" | LC_ALL=C grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$' || return 2
+        version=$2; shift 2;;
+      --enable-rc-updates)
+        [ -z "$rc_option" ] || return 2
+        rc_option=--enable-rc-updates; shift;;
+      *) echo 'Неизвестный параметр загрузчика.' >&2; return 2;;
+    esac
+  done
   # The shell program may arrive on stdin; interactive prompts use the SSH TTY.
   [ -r /dev/tty ] && [ -w /dev/tty ] || { echo 'CRDN requires an interactive terminal (/dev/tty)' >&2; return 1; }
   crdn_tmp=$(mktemp -d)
@@ -19,8 +27,9 @@ crdn_main() {
     curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --proto '=https' --proto-redir '=https' -o stable.json https://neuroflo.ru/crdn-files/stable.json
     version=$(python3 -c 'import json; v=json.load(open("stable.json")); assert not v.get("prerelease") and v.get("tag_name"), "Стабильного выпуска CRDN пока нет; предварительный выпуск требует --release"; print(v["tag_name"])')
     printf '%s\n' "$version" | LC_ALL=C grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || return 2
-    set -- --release "$version"
   fi
+  set -- --release "$version"
+  [ -z "$rc_option" ] || set -- "$@" "$rc_option"
   printf '%s\n' 'Скачивание загрузчика CRDN…'
   primary=https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$version
   mirror=https://neuroflo.ru/crdn-files/releases/$version

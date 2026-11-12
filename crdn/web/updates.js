@@ -1,0 +1,100 @@
+'use strict';
+(() => {
+  const version = document.querySelector('#current-version');
+  if (!version) return;
+  const offer = document.querySelector('#update-offer'), dialog = document.querySelector('#update-dialog');
+  const title = document.querySelector('#update-title'), progress = document.querySelector('#update-progress');
+  const confirm = document.querySelector('#update-confirm'), cancel = document.querySelector('#update-cancel');
+  const manual = document.querySelector('#update-check'), note = document.querySelector('#update-check-note');
+  const login = document.querySelector('#update-login');
+  const phases = {queued: 'Обновление ожидает запуска…', download: 'Скачивание выпуска…', verify: 'Проверка файлов…',
+    server: 'Проверка сервера и загрузка приложения…', probe: 'Пробный запуск с временными данными…',
+    activate: 'Перезапуск панели и проверка результата…', health: 'Проверка установленной версии…',
+    interrupted: 'Обновление прервано. Требуется проверка через SSH.',
+    failed_rolled_back: 'Обновление не выполнено. Сохранена прежняя версия и данные входа.',
+    failed: 'Обновление не подтверждено. Требуется проверка через SSH.'};
+  const busy = new Set(['queued', 'download', 'verify', 'server', 'probe', 'activate', 'health']);
+  let state, target, submitted = false, disconnectedAt;
+  function remembered(value) { try { if (value === undefined) return sessionStorage.getItem('crdn-update-target'); if (value) sessionStorage.setItem('crdn-update-target', value); else sessionStorage.removeItem('crdn-update-target'); } catch {} return null; }
+  async function api(path, post = false) {
+    const options = {cache: 'no-store', signal: AbortSignal.timeout(5000)};
+    if (post) {
+      const session = await fetch('/api/auth/session', options).then(r => r.json());
+      options.method = 'POST'; options.headers = {'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token}; options.body = JSON.stringify(path === '/start' ? {version: target} : {});
+    }
+    const response = await fetch('/api/updates' + path, options);
+    if (response.status === 401 || response.status === 403) {
+      const error = Error('Сессия завершилась. Войдите снова, чтобы проверить результат.'); error.login = true; throw error;
+    }
+    const value = await response.json();
+    if (!response.ok || value.error) throw Error(value.error || 'Не удалось выполнить запрос.');
+    return value;
+  }
+  function render(value) {
+    state = value;
+    version.textContent = 'Текущая версия: ' + (value.current || 'не определена');
+    offer.hidden = !value.available;
+    if (value.available) offer.textContent = 'Доступна ' + value.available + ' · Обновить';
+    note.textContent = value.checking ? 'Проверка выпусков…' : value.check_error ? 'Источники временно недоступны. Панель продолжает работать.' : value.channel === 'rc' ? 'Включён тестовый канал RC.' : 'Канал стабильных выпусков.';
+    manual.disabled = value.checking;
+    const operation = value.operation;
+    if (!operation) return;
+    if (busy.has(operation.phase)) {
+      target = operation.target; remembered(target); submitted = true; window.crdnUpdateActive = true;
+      title.textContent = 'Обновление CRDN до ' + target;
+      progress.textContent = phases[operation.phase]; confirm.disabled = true; cancel.disabled = true;
+      if (!dialog.open) dialog.showModal();
+    } else if ((submitted && operation.target === target) || remembered() === operation.target) {
+      if (remembered() === operation.target) { title.textContent = 'Результат обновления CRDN'; if (!dialog.open) dialog.showModal(); remembered(null); }
+      window.crdnUpdateActive = false; submitted = false; cancel.disabled = false;
+      confirm.hidden = true; cancel.textContent = 'Закрыть';
+      progress.textContent = operation.phase === 'success' && value.current === operation.target ? 'CRDN обновлён до ' + value.current + '. Данные входа и настройки сохранены.' : (phases[operation.phase] || 'Результат обновления не подтверждён.');
+      if (operation.reason === 'integrity') progress.textContent += ' Ошибка проверки целостности файлов.';
+    }
+  }
+  offer.addEventListener('click', () => {
+    if (submitted || !state?.available) return;
+    target = state.available; title.textContent = 'Обновить CRDN до ' + target + '?';
+    progress.textContent = ''; confirm.hidden = false; confirm.disabled = false; cancel.disabled = false; cancel.textContent = 'Отмена'; login.hidden = true;
+    dialog.showModal();
+  });
+  cancel.addEventListener('click', () => { if (!submitted) dialog.close(); });
+  dialog.addEventListener('cancel', event => { if (submitted) event.preventDefault(); });
+  confirm.addEventListener('click', async () => {
+    if (submitted) return;
+    submitted = true; remembered(target); window.crdnUpdateActive = true; confirm.disabled = true; cancel.disabled = true;
+    progress.textContent = 'Отправка запроса…';
+    try { render(await api('/start', true)); }
+    catch (error) {
+      // A lost response can follow an accepted request; ask persisted status before retrying.
+      progress.textContent = error.message + ' Проверяем состояние операции…';
+      if (error.login) login.hidden = false;
+    }
+    poll();
+  });
+  manual.addEventListener('click', async () => {
+    manual.disabled = true;
+    try { render(await api('/check', true)); }
+    catch (error) { note.textContent = error.message; }
+    finally { if (!state?.checking) manual.disabled = false; }
+  });
+  async function poll() {
+    try {
+      const value = await api(''); disconnectedAt = null;
+      // The root worker's success must also match the running HTTP release.
+      render(value);
+      if (submitted && (!value.operation || (!busy.has(value.operation.phase) && value.operation.target !== target))) {
+        submitted = false; remembered(null); window.crdnUpdateActive = false; cancel.disabled = false; confirm.disabled = false;
+        progress.textContent = 'Запуск обновления не подтверждён. Проверьте наличие выпуска и повторите запрос.';
+      }
+    } catch (error) {
+      if (submitted) {
+        disconnectedAt ||= Date.now();
+        progress.textContent = error.login ? error.message : 'Связь с панелью временно потеряна. Ожидание перезапуска…';
+        if (error.login || Date.now() - disconnectedAt > 120000) login.hidden = false;
+      }
+    }
+  }
+  poll();
+  setInterval(poll, 5000);
+})();

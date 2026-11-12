@@ -3,6 +3,7 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import ipaddress
+import re
 import os
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -10,6 +11,7 @@ import threading
 import time
 
 from .metrics import Collector
+from . import updates
 from .auth import AuthStore, AuthError, COOKIE, SESSION_TTL
 
 
@@ -120,7 +122,9 @@ def make_server(store, port=8765, auth=None, origin=None):
                 assets = {'/': ('index.html', 'text/html; charset=utf-8'),
                           '/style.css': ('style.css', 'text/css; charset=utf-8'),
                           '/app.js': ('app.js', 'text/javascript; charset=utf-8')}
-                if self.path == '/api/metrics': self.send(200, store.body())
+                if self.path == '/api/updates': self.json(200, updates.request())
+                elif self.path == '/updates.js': self.asset('updates.js', 'text/javascript; charset=utf-8')
+                elif self.path == '/api/metrics': self.send(200, store.body())
                 elif self.path in assets: self.asset(*assets[self.path])
                 else: self.send(404)
             except AuthError as error:
@@ -130,7 +134,8 @@ def make_server(store, port=8765, auth=None, origin=None):
             routes = {'/api/auth/login': 'login', '/api/auth/change': 'change',
                       '/api/auth/logout': 'logout', '/api/auth/dismiss': 'dismiss',
                       '/api/auth/activity': 'activity'}
-            if self.path not in routes:
+            update_operation = {'/api/updates/check': 'check', '/api/updates/start': 'update'}.get(self.path)
+            if self.path not in routes and not update_operation:
                 self.send(404)
                 return
             try:
@@ -146,6 +151,17 @@ def make_server(store, port=8765, auth=None, origin=None):
                 except (ValueError, UnicodeError):
                     raise AuthError(400, 'Некорректный запрос.')
                 if not isinstance(data, dict): raise AuthError(400, 'Некорректный запрос.')
+                if update_operation:
+                    auth.authorize_update(self.token(), self.headers.get('X-CSRF-Token'))
+                    if update_operation == 'update':
+                        if set(data) != {'version'} or not isinstance(data['version'], str) or len(data['version']) > 64 or not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?', data['version']):
+                            raise AuthError(400, 'Требуется выбранная версия выпуска.')
+                        value = updates.request('update', data['version'])
+                    else:
+                        if data: raise AuthError(400, 'Параметры проверки не принимаются.')
+                        value = updates.request('check')
+                    self.json(409 if value.get('error') else 200, value)
+                    return
                 peer = self.client_address[0]
                 # Caddy overwrites this header; only the loopback proxy is trusted.
                 forwarded = self.headers.get('X-CRDN-Client-IP')
