@@ -114,7 +114,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=('install', 'update', 'uninstall'))
     parser.add_argument('--release', help='Exact tool/runtime release; required to opt into a Pre-release')
-    parser.add_argument('--enable-rc-updates', action='store_true')
+    channel = parser.add_mutually_exclusive_group()
+    channel.add_argument('--enable-rc-updates', action='store_true')
+    channel.add_argument('--disable-rc-updates', action='store_true')
     parser.add_argument('--domain', help='Optional; otherwise installer asks interactively')
     args = parser.parse_args(argv)
     if args.release and not re.fullmatch(VERSION, args.release):
@@ -134,6 +136,8 @@ def main(argv=None):
             command += ['--release', tag]
         if args.enable_rc_updates:
             command += ['--enable-rc-updates']
+        elif args.disable_rc_updates:
+            command += ['--disable-rc-updates']
         if args.domain:
             command += ['--domain', args.domain]
         return subprocess.call(command)

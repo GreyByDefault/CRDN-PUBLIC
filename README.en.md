@@ -10,7 +10,7 @@ No Docker, external monitoring services or heavyweight databases.
 
 [GitHub](https://github.com/GreyByDefault/CRDN-PUBLIC) · [Releases](https://github.com/GreyByDefault/CRDN-PUBLIC/releases)
 
-**v1.0.0-rc.16 is a Pre-release. Stable v1.0.0 is not available. From rc.15 with RC updates enabled, use the update button in the header; no reinstallation is needed.**
+**v1.0.0 is the first stable CRDN release. An existing rc.16 installation can update through the header button without reinstallation.**
 
 ## What CRDN looks like
 
@@ -31,6 +31,8 @@ No Docker, external monitoring services or heavyweight databases.
 
 CRDN is designed for observing your server. It does not manage system resources or change their settings.
 
+After installation, CRDN runs independently on your server and starts automatically after a reboot. Metrics, credentials and settings stay on that server. GitHub and the NEUROFLO mirror are used to obtain releases and update information; their temporary unavailability does not stop monitoring or login.
+
 ---
 
 
@@ -40,7 +42,7 @@ The ☰ menu opens Settings, manual update checks, About and Logout. A separate 
 
 Dark is the default theme. Light can be selected in Settings and is saved only in this browser, including the login page. Other devices keep their own choice.
 
-Supported browsers can install CRDN on the home screen using the server name and a stable identity for this origin. Renaming refreshes browser metadata, but launcher-label refresh depends on the browser/OS and may require reinstalling the shortcut. The 192/512 and Apple 180 icons contain only large CRDN letters on an opaque square background; the launcher determines their shape. Refreshing an installed icon depends on Android/browser behavior and may require reinstalling the shortcut. There is no offline monitoring or caching of private data. Installation and appearance on a real phone still require user acceptance.
+On Android, open the dashboard in a supported browser and choose “Install app” or “Add to Home screen” from the browser menu. CRDN opens as a separate application using the server name. Its identity remains stable across renaming and updates. Android may keep the old label after renaming: if needed, reinstall only the PWA app/shortcut, not CRDN on the server. Android installation, the icon and standalone opening have been accepted by the user. There is no offline monitoring or caching of private data.
 
 ## 1. What you need for installation
 
@@ -52,7 +54,10 @@ To install CRDN, you need:
 - A domain or subdomain.
 - An internet connection on the server.
 
-These are target systems, with systemd. Debian 12 was used to test installation components, updates, rollback and removal, as well as Caddy/Nginx/Apache configurations. On our Ubuntu 24.04 server, applicability was checked without installation. Full installation with certificate issuance/renewal and the entire OS list have not completed acceptance testing yet.
+All listed systems require systemd. Verification differs by configuration:
+
+- **Confirmed by the user on a real VPS:** Ubuntu Server 24.04 with Caddy — installation, updates, removal, reinstallation, HTTPS and browser login.
+- **Supported by the installer, without full user acceptance testing:** Ubuntu Server 22.04/26.04 LTS, Debian 12/13 and Nginx/Apache integration. Separate Debian 12 component and configuration checks do not replace the full installation and certificate lifecycle tests on every combination.
 
 Commands require Python 3, curl, sha256sum, tar and standard system tools. The bootstrap fetches the script bundle itself; there is no need to download sources, extract an archive or choose a directory manually. Commands work as root or as a user with sudo; a sudo password prompt is normal.
 
@@ -169,10 +174,10 @@ Once connected, you can proceed to CRDN installation.
 Copy the installation command and run it on the server.
 
 ```sh
-bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh install --release "$v" < /dev/tty'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh install --release "$v" < /dev/tty'
 ```
 
-Paste the single line into your SSH session. The command fetches the shell bootstrap and its SHA-256 from GitHub, with same-tag mirror fallback on transport failure, and verifies the exact filename and checksum before execution. The bootstrap then fetches and verifies the complete official bundle and invokes the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, when the loader runs from a temporary file. This command explicitly selects v1.0.0-rc.16; production HTTPS is the default, without ACME staging.
+Paste the single line into your SSH session. The command fetches the shell bootstrap and its SHA-256 from GitHub, with same-tag mirror fallback on transport failure, and verifies the exact filename and checksum before execution. The bootstrap then fetches and verifies the complete official bundle and invokes the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty while the loader runs from a temporary file. This command explicitly selects stable v1.0.0; production HTTPS is the default, without ACME staging.
 
 Once started, the installer:
 
@@ -181,7 +186,7 @@ Once started, the installer:
 3. Detects the installed web server: Caddy, Nginx or Apache.
 4. Asks for the domain or subdomain and a server name (up to 24 Unicode characters, including spaces).
 5. Checks DNS and the network ports needed for operation.
-6. Downloads CRDN from an official Release: stable by default, or the explicitly selected v1.0.0-rc.16 in the command above.
+6. Downloads CRDN from an official Release: stable by default, with v1.0.0 selected explicitly in the command above.
 7. Installs the application and configures automatic startup.
 8. Connects the dashboard to the web server and configures HTTPS.
 9. Checks the application and displays the dashboard address.
@@ -229,16 +234,16 @@ New versions are published on [GitHub Releases](https://github.com/GreyByDefault
 A separate command is used for updates:
 
 ```sh
-bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh update --release "$v" --enable-rc-updates < /dev/tty'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh update --release "$v" --disable-rc-updates < /dev/tty'
 ```
 
-Run the command from any directory. It currently selects rc.16 explicitly; without `--release v1.0.0-rc.16`, the bootstrap uses only the latest stable release and reports an error if none exists.
+Run the command from any directory. It selects stable v1.0.0 and explicitly disables RC updates. Existing credentials and settings are retained. Without an exact `--release`, the loaders select only the latest stable release; if none is available, the operation stops.
 
-On rc.15 with RC updates enabled, use the header update button. The manual command is for older installations or maintenance and explicitly enables the RC channel (`--enable-rc-updates`). Ordinary installations without this flag accept stable updates only.
+For an installed rc.16, use ☰ → “Check for updates”, then the update button in the header. Confirm after reading “What’s new”; reinstallation is unnecessary. A browser update from RC to stable preserves an enabled RC channel. To return to stable-only updates, run the manual update command above: its `--disable-rc-updates` flag changes the channel safely, including when v1.0.0 is already installed. Omitting `--enable-rc-updates` alone does not disable an existing RC channel.
 
 Release checks run asynchronously at startup and at most once daily. Open ☰ → “Check for updates” for a rate-limited manual check. GitHub is primary and the mirror is fallback. The update dialog shows stages and the verified result; sign in again after restart. Accepting the request does not mean the update succeeded.
 
-Starting with rc.15, the confirmation dialog shows “What’s new” for the offered version, derived from its release notes. GitHub is primary and the mirror is fallback. Missing descriptions do not block confirmation.
+The confirmation dialog shows “What’s new” for the offered version, derived from its release notes. GitHub is primary and the mirror is fallback. Missing descriptions do not block confirmation.
 
 Updates preserve:
 
@@ -246,26 +251,25 @@ Updates preserve:
 - Your domain or subdomain.
 - HTTPS settings.
 - CRDN service configuration.
-- Other user-defined application settings.
+- The server name and other user-defined application settings.
+
+The selected theme stays in each browser independently.
 
 After an update, the dashboard continues working at the same address. Initial setup does not need to be repeated.
 
-### What types of versions are there?
+### Stable and test RC channels
 
-- **Stable** — a stable version recommended for regular installation.
-- **Beta** — a preliminary version with new features.
-- **Alpha** — an early experimental version.
+- **Stable** is recommended for ordinary installations. New installations use this channel by default. The commands on this page explicitly select stable v1.0.0.
+- **RC (Release Candidate)** is a preliminary test release. It requires an explicit `--release vX.Y.Z-rc.N`; future RC offers additionally require `--enable-rc-updates`. This channel can offer stable releases too.
 
-The normal installation command uses the latest stable CRDN version.
-
-Preliminary versions are installed separately, at the user's explicit choice.
+The channel is shown in About. Stable-only never switches to RC automatically. `--disable-rc-updates` in the manual update command returns an existing installation to stable-only; no account or server-name reset is needed.
 
 ## 7. Removing CRDN
 
 A separate command is provided to remove the application:
 
 ```sh
-bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh uninstall --release "$v" < /dev/tty'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh uninstall --release "$v" < /dev/tty'
 ```
 
 Run the command from any directory. The release number selects the verified removal tools, not the version of the installation to be removed.
@@ -274,7 +278,7 @@ The script stops the service, removes application files and removes the web serv
 
 Other websites, services and applications on the server remain unchanged.
 
-Removal is complete: the application, its configuration and all CRDN-owned user data, including the account, are deleted without a separate question about retaining them. External backups and shared Caddy certificates are preserved. After successful removal, a new installation creates admin/admin.
+Removal is complete: the application, its configuration and all CRDN-owned user data, including the account, are deleted without a separate question about retaining them. External backups and shared Caddy certificates are preserved. After successful removal, a new installation creates admin/admin. If final cleanup was interrupted, repeat the removal command: already deleted known files are accepted, while changed or unexpected resources stop automatic cleanup.
 
 ## 8. Troubleshooting
 

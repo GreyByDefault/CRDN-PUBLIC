@@ -456,7 +456,7 @@ UPDATER_DATA = Path('/var/lib/crdn-updater')
 UPDATER_RUN = Path('/run/crdn-updater')
 
 
-def updater_resources(enable_rc=False):
+def updater_resources(enable_rc=False, disable_rc=False):
     tools = Path(__file__).resolve().parents[1]
     resources = {str(UPDATER_CODE / name): (tools / name).read_bytes() for name in
                  ('bootstrap.py', 'ops/web_update.py')}
@@ -493,7 +493,7 @@ WantedBy=multi-user.target
 '''
         resources['/etc/systemd/system/' + unit_name] = text.encode()
     config = META / 'update-channel.json'
-    if enable_rc or not config.exists():
+    if enable_rc or disable_rc or not config.exists():
         resources[str(config)] = json.dumps({'channel': 'rc' if enable_rc else 'stable'}).encode()
     return resources
 
@@ -507,7 +507,7 @@ def managed_update(content, state, args):
     state['updater_staging'] = True
     save(STATE, state)
     try:
-        for name, data in updater_resources(args.enable_rc_updates).items():
+        for name, data in updater_resources(args.enable_rc_updates, getattr(args, 'disable_rc_updates', False)).items():
             path = Path(name)
             if path.exists() and name not in state['files']:
                 raise ValueError('Неучтённый ресурс веб-обновления: ' + name)
@@ -648,7 +648,7 @@ ExecStart=/usr/bin/certbot renew --quiet --config-dir {acme}/config --work-dir {
             write('/etc/systemd/system/crdn-managed-renew.service', renew)
             write('/etc/systemd/system/crdn-managed-renew.timer', '[Unit]\nDescription=CRDN certificate renewal\n[Timer]\nOnCalendar=daily\nRandomizedDelaySec=3600\nPersistent=true\n[Install]\nWantedBy=timers.target\n')
         write('/etc/systemd/system/' + UNIT, unit(domain, port))
-        for resource, data in updater_resources(args.enable_rc_updates).items():
+        for resource, data in updater_resources(args.enable_rc_updates, getattr(args, 'disable_rc_updates', False)).items():
             if Path(resource).exists(): raise ValueError('Ресурс веб-обновления уже занят: ' + resource)
             write(resource, data.decode())
         for folder in (UPDATER_CODE, UPDATER_CODE / 'ops'):
@@ -863,7 +863,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=('install', 'update', 'uninstall', 'recover'))
     parser.add_argument('--domain')
-    parser.add_argument('--enable-rc-updates', action='store_true', help='Explicitly opt into the RC web-update test channel')
+    channel = parser.add_mutually_exclusive_group()
+    channel.add_argument('--enable-rc-updates', action='store_true', help='Explicitly opt into the RC web-update test channel')
+    channel.add_argument('--disable-rc-updates', action='store_true', help='Explicitly return web updates to stable-only')
     parser.add_argument('--release', help='Explicit GitHub Release tag; permits this exact Pre-release only')
     parser.add_argument('--recover', action='store_true', help='Recover interrupted operation before retry')
     parser.add_argument('--test-archive', help='Explicit local runtime fixture; never selected automatically')

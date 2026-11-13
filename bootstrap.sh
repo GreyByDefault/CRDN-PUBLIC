@@ -12,9 +12,9 @@ crdn_main() {
         [ -z "$version" ] && [ "$#" -ge 2 ] || return 2
         printf '%s\n' "$2" | LC_ALL=C grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$' || return 2
         version=$2; shift 2;;
-      --enable-rc-updates)
+      --enable-rc-updates|--disable-rc-updates)
         [ -z "$rc_option" ] || return 2
-        rc_option=--enable-rc-updates; shift;;
+        rc_option=$1; shift;;
       *) echo 'Неизвестный параметр загрузчика.' >&2; return 2;;
     esac
   done
