@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tarfile
 
-FILES = ('crdn/__init__.py', 'crdn/api.py', 'crdn/metrics.py',
+FILES = ('crdn/web/theme.js', 'crdn/settings.py', 'crdn/web/shell.js', 'crdn/web/sw.js', 'crdn/web/icon-192.png', 'crdn/web/icon-512.png', 'crdn/web/apple-touch-icon.png', 'crdn/__init__.py', 'crdn/api.py', 'crdn/metrics.py',
          'crdn/web/favicon.ico', 'crdn/web/index.html', 'crdn/web/style.css', 'crdn/web/app.js',
          'crdn/updates.py', 'crdn/web/updates.js', 'crdn/auth.py', 'crdn/web/login.html', 'crdn/web/auth.css', 'crdn/web/auth.js')
 

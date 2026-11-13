@@ -2,13 +2,19 @@
 <html lang="ru">
 <head>
  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
- <meta name="color-scheme" content="dark"><title>CRDN — Server Monitor</title>
+ <meta name="theme-color" content="#171a1d"><link id="pwa-manifest" rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><script src="/shell.js" defer></script>
+ <script src="/theme.js"></script><meta name="color-scheme" content="dark"><title>CRDN — Server Monitor</title>
  <link rel="icon" type="image/x-icon" href="/favicon.ico"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/auth.css"><script src="/auth.js" defer></script><script src="/updates.js" defer></script><script src="/app.js" defer></script>
 </head>
 <body><main>
- <header class="page-header"><div class="identity"><h1>CRDN<span>.</span></h1><div class="brand">NEUROFLO<span>SERVER MONITOR</span></div></div>
- <div class="version-block"><span id="current-version">Текущая версия: …</span><button id="update-offer" class="update-offer" type="button" hidden></button></div>
- <div class="header-actions"><div class="connection"><p id="connection" role="status" data-state="waiting">Подключение…</p><span id="updated">Ожидание первого снимка</span></div><div class="account-actions"><button id="account-button" class="auth-button" type="button">Учётная запись</button><button id="logout-button" class="auth-button" type="button">Выйти</button></div></div></header>
+ <header class="page-header">
+ <div class="identity"><h1>CRDN<span>.</span></h1><div class="brand">NEUROFLO<span>SERVER MONITOR</span></div></div>
+ <div class="server-heading"><span id="server-name">Сервер</span><span id="current-version">Версия: …</span></div>
+ <button id="update-offer" class="update-offer" type="button" hidden></button>
+ <div class="connection"><p id="connection" role="status" data-state="waiting">Подключение…</p><span id="updated">Ожидание первого снимка</span></div>
+ <button id="menu-button" class="auth-button" type="button" aria-label="Меню" aria-expanded="false" aria-controls="main-menu">☰</button>
+ <div id="main-menu" hidden><button id="account-button" type="button">Настройки</button><button id="open-update-check" type="button">Проверить обновления</button><button id="about-button" type="button">О приложении</button><button id="logout-button" type="button">Выйти</button></div>
+ </header>
  <div class="dashboard">
  <section class="card cpu-card" aria-labelledby="cpu-title">
   <header class="card-header"><h2 id="cpu-title"><span class="card-symbol" aria-hidden="true">◎</span>CPU</h2><span>Процессор</span></header>
@@ -48,7 +54,8 @@
   <div class="tcp"><span>Установленные TCP-соединения</span><strong id="network-tcp">—</strong></div>
  </section>
  </div>
- <footer><span>Локальный мониторинг · обновление ≈ 2 с</span><span>История 5 минут · только наблюдение</span> <details class="update-tools"><summary>Обновления</summary><div class="update-tools-panel"><button id="update-check" class="auth-button" type="button">Проверить обновления</button><span id="update-check-note" role="status"></span></div></details></footer>
+ <dialog id="check-dialog" class="auth-dialog" aria-labelledby="check-title"><h2 id="check-title">Обновления</h2><p id="update-check-note" role="status"></p><p id="update-channel"></p><button id="update-check" class="auth-button" type="button">Проверить снова</button><button id="check-offer" class="auth-primary" type="button" hidden>Обновить</button><button type="button" data-close>Закрыть</button></dialog>
+ <dialog id="about-dialog" class="auth-dialog" aria-labelledby="about-title"><h2 id="about-title">CRDN Server Monitor</h2><p id="about-version">Версия: …</p><p>Лёгкая веб-панель мониторинга CPU, RAM, Disk и Network Linux-сервера.</p><p><a href="https://neuroflo.ru/" target="_blank" rel="noopener noreferrer">NEUROFLO</a> · <a href="https://github.com/GreyByDefault/CRDN-PUBLIC" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://neuroflo.ru/crdn/" target="_blank" rel="noopener noreferrer">Инструкция CRDN</a></p><p>Локальный мониторинг · обновление ≈ 2 с</p><p>История 5 минут · только наблюдение</p><button type="button" data-close>Закрыть</button></dialog>
  <dialog id="update-dialog" class="auth-dialog" aria-labelledby="update-title"><h2 id="update-title"></h2><p>Панель ненадолго перезапустится. Данные входа и настройки сохранятся</p><p id="update-progress" role="status" aria-live="polite"></p><a id="update-login" href="/login" hidden>Войти снова</a><div class="auth-controls"><button id="update-cancel" type="button">Отмена</button><button id="update-confirm" class="auth-primary" type="button">Обновить</button></div></dialog>
  <noscript>Для получения показателей включите JavaScript в браузере.</noscript>
 </main></body></html>

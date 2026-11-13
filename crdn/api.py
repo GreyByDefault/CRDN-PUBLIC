@@ -12,6 +12,7 @@ import time
 
 from .metrics import Collector
 from . import updates
+from .settings import SettingsStore
 from .auth import AuthStore, AuthError, COOKIE, SESSION_TTL
 
 
@@ -58,6 +59,7 @@ def make_server(store, port=8765, auth=None, origin=None):
     if auth is None:
         state = os.environ.get('CRDN_STATE_DIR', str(Path.home() / '.local/state/crdn'))
         auth = AuthStore(state)
+    settings = SettingsStore(auth.directory)
     origin = origin or os.environ.get('CRDN_ORIGIN', f'http://127.0.0.1:{port}')
 
     class Handler(BaseHTTPRequestHandler):
@@ -108,7 +110,11 @@ def make_server(store, port=8765, auth=None, origin=None):
                     if logged_in: self.send(303, location='/')
                     else: self.asset('login.html', 'text/html; charset=utf-8')
                     return
-                public_assets = {'/favicon.ico': ('favicon.ico', 'image/x-icon'),
+                public_assets = {'/theme.js': ('theme.js', 'text/javascript; charset=utf-8'), '/favicon.ico': ('favicon.ico', 'image/x-icon'),
+                                 '/icon-192.png': ('icon-192.png', 'image/png'),
+                                 '/icon-512.png': ('icon-512.png', 'image/png'),
+                                 '/apple-touch-icon.png': ('apple-touch-icon.png', 'image/png'),
+                                 '/sw.js': ('sw.js', 'text/javascript; charset=utf-8'),
                                  '/auth.css': ('auth.css', 'text/css; charset=utf-8'),
                                  '/auth.js': ('auth.js', 'text/javascript; charset=utf-8')}
                 if self.path in public_assets:
@@ -121,8 +127,13 @@ def make_server(store, port=8765, auth=None, origin=None):
                     return
                 assets = {'/': ('index.html', 'text/html; charset=utf-8'),
                           '/style.css': ('style.css', 'text/css; charset=utf-8'),
+                          '/shell.js': ('shell.js', 'text/javascript; charset=utf-8'),
                           '/app.js': ('app.js', 'text/javascript; charset=utf-8')}
-                if self.path == '/api/updates': self.json(200, updates.request())
+                if self.path == '/api/settings': self.json(200, settings.read())
+                elif self.path == '/manifest.webmanifest':
+                    name = settings.read()['server_name'] or 'CRDN'
+                    self.send(200, json.dumps(dict(id='/', name=name, short_name=name, start_url='/', scope='/', display='standalone', background_color='#171a1d', theme_color='#171a1d', icons=[dict(src='/icon-192.png', sizes='192x192', type='image/png'), dict(src='/icon-512.png', sizes='512x512', type='image/png')]), ensure_ascii=False).encode(), 'application/manifest+json; charset=utf-8')
+                elif self.path == '/api/updates': self.json(200, updates.request())
                 elif self.path == '/updates.js': self.asset('updates.js', 'text/javascript; charset=utf-8')
                 elif self.path == '/api/metrics': self.send(200, store.body())
                 elif self.path in assets: self.asset(*assets[self.path])
@@ -135,7 +146,7 @@ def make_server(store, port=8765, auth=None, origin=None):
                       '/api/auth/logout': 'logout', '/api/auth/dismiss': 'dismiss',
                       '/api/auth/activity': 'activity'}
             update_operation = {'/api/updates/check': 'check', '/api/updates/start': 'update'}.get(self.path)
-            if self.path not in routes and not update_operation:
+            if self.path not in routes and not update_operation and self.path != '/api/settings':
                 self.send(404)
                 return
             try:
@@ -151,6 +162,10 @@ def make_server(store, port=8765, auth=None, origin=None):
                 except (ValueError, UnicodeError):
                     raise AuthError(400, 'Некорректный запрос.')
                 if not isinstance(data, dict): raise AuthError(400, 'Некорректный запрос.')
+                if self.path == '/api/settings':
+                    auth.authorize_update(self.token(), self.headers.get('X-CSRF-Token'))
+                    self.json(200, settings.save(data))
+                    return
                 if update_operation:
                     auth.authorize_update(self.token(), self.headers.get('X-CSRF-Token'))
                     if update_operation == 'update':

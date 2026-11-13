@@ -94,7 +94,7 @@
   const dialog = document.createElement('dialog');
   dialog.className = 'auth-dialog'; dialog.setAttribute('aria-labelledby', 'account-title');
   dialog.innerHTML = `<button type="button" class="auth-close" aria-label="Закрыть">×</button>
-    <h2 id="account-title">Учётная запись</h2><form class="auth-form">
+    <h2 id="account-title">Настройки</h2><h3>Учётная запись</h3><form class="auth-form">
     <label>Текущий логин<input name="current_username" readonly autocomplete="off"></label>
     <label>Текущий пароль<span class="password-field"><input id="account-current-password" aria-label="Текущий пароль" name="current_password" type="password" autocomplete="current-password" required maxlength="256"><button type="button" aria-controls="account-current-password" aria-pressed="false">Показать</button></span></label>
     <label>Новый логин<input name="username" autocomplete="username" required maxlength="64"></label>
@@ -103,6 +103,34 @@
     <p class="auth-hint">Пароль: от 8 до 256 символов. Другие активные сессии будут завершены.</p>
     <p class="auth-error" role="alert"></p><div class="auth-controls"><button type="button" class="account-cancel">Отмена</button><button type="submit" class="auth-primary">Сохранить</button></div></form>`;
   document.body.append(notice, dialog);
+  const settingsForm = document.createElement('form');
+  settingsForm.className = 'auth-form server-settings';
+  settingsForm.innerHTML = '<h3>Название сервера</h3><label>Название сервера<input name="server_name" autocomplete="off" placeholder="До 12 символов"></label><p class="auth-error" role="status"></p><div class="auth-controls"><button type="button" data-later>Позже</button><button type="submit" class="auth-primary">Сохранить</button></div>';
+  dialog.append(settingsForm);
+  const themeLabel = document.createElement('label');
+  themeLabel.className = 'theme-setting';
+  themeLabel.textContent = 'Тема оформления';
+  const themeSelect = document.createElement('select');
+  themeSelect.innerHTML = '<option value="dark">Тёмная</option><option value="light">Светлая</option>';
+  themeSelect.value = document.documentElement.dataset.theme || 'dark';
+  themeSelect.onchange = () => window.crdnApplyTheme(themeSelect.value);
+  themeLabel.append(themeSelect); dialog.append(themeLabel);
+  settingsForm.querySelector('[data-later]').onclick = () => dialog.close();
+  settingsForm.onsubmit = async event => {
+    event.preventDefault();
+    const status = settingsForm.querySelector('[role="status"]');
+    const name = settingsForm.elements.server_name.value;
+    if ([...name].length > 12) { status.textContent = 'Не более 12 символов, включая пробелы.'; return; }
+    const button = settingsForm.querySelector('[type="submit"]'); button.disabled = true;
+    try {
+      await loadSession();
+      const response = await fetch('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf_token}, body: JSON.stringify({server_name:name})});
+      const value = await response.json();
+      if (!response.ok) throw Error(value.error || 'Не удалось сохранить название.');
+      window.crdnSetServerName(value.server_name); status.textContent = 'Название сохранено.';
+    } catch (failure) { showError(status, failure); }
+    finally { button.disabled = false; }
+  };
   const form = dialog.querySelector('form'), error = form.querySelector('.auth-error');
   const passwordToggles = [...dialog.querySelectorAll('[aria-controls]')];
   passwordToggles.forEach(bindPasswordToggle);
@@ -119,7 +147,10 @@
       document.getElementById(button.getAttribute('aria-controls')).type = 'password';
       button.textContent = 'Показать'; button.setAttribute('aria-pressed', 'false');
     }
-    error.textContent = ''; dialog.showModal();
+    error.textContent = '';
+    settingsForm.querySelector('[role="status"]').textContent = '';
+    try { const r = await fetch('/api/settings', {cache:'no-store'}); if (r.ok) settingsForm.elements.server_name.value = (await r.json()).server_name; } catch {}
+    dialog.showModal();
   }
   function closeAccount() { dialog.close(); form.reset(); error.textContent = ''; }
   notice.querySelector('.auth-close').onclick = dismiss;
@@ -142,5 +173,5 @@
     try { await post('logout'); location.replace('/login'); }
     catch { alert('Выход не выполнен. Проверьте соединение и повторите.'); }
   };
-  if (state.remind_default) notice.showModal();
+  if (state.remind_default) { console.info('[CRDN auth]', 'default-credentials-notice'); notice.showModal(); }
 })();

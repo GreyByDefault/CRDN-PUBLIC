@@ -6,6 +6,8 @@
   const title = document.querySelector('#update-title'), progress = document.querySelector('#update-progress');
   const confirm = document.querySelector('#update-confirm'), cancel = document.querySelector('#update-cancel');
   const manual = document.querySelector('#update-check'), note = document.querySelector('#update-check-note');
+  const checkDialog = document.querySelector('#check-dialog'), checkOffer = document.querySelector('#check-offer');
+  let manualRequested = false;
   const login = document.querySelector('#update-login');
   const phases = {queued: 'Обновление ожидает запуска…', download: 'Скачивание выпуска…', verify: 'Проверка файлов…',
     server: 'Проверка сервера и загрузка приложения…', probe: 'Пробный запуск с временными данными…',
@@ -24,6 +26,7 @@
     }
     const response = await fetch('/api/updates' + path, options);
     if (response.status === 401 || response.status === 403) {
+      diagnostic('http-' + response.status);
       const error = Error('Сессия завершилась. Войдите снова, чтобы проверить результат.'); error.login = true; throw error;
     }
     const value = await response.json();
@@ -31,11 +34,16 @@
     return value;
   }
   function render(value) {
+    diagnostic(value.enabled === false ? 'controller-unavailable' : value.operation?.phase || (value.check_error ? 'source-unavailable' : 'idle'));
     state = value;
-    version.textContent = 'Текущая версия: ' + (value.current || 'не определена');
+    version.textContent = 'Версия: ' + (value.current || 'не определена');
+    document.querySelector('#about-version').textContent = version.textContent;
+    checkOffer.hidden = !value.available;
+    checkOffer.textContent = value.available ? 'Обновить до ' + value.available : 'Обновить';
+    document.querySelector('#update-channel').textContent = value.channel === 'rc' ? 'Включён тестовый канал RC.' : 'Канал стабильных выпусков.';
     offer.hidden = !value.available;
     if (value.available) offer.textContent = 'Доступна ' + value.available + ' · Обновить';
-    note.textContent = value.checking ? 'Проверка выпусков…' : value.check_error ? 'Источники временно недоступны. Панель продолжает работать.' : value.channel === 'rc' ? 'Включён тестовый канал RC.' : 'Канал стабильных выпусков.';
+    note.textContent = value.checking ? 'Проверка выпусков…' : value.check_error ? 'Источники временно недоступны. Повторите проверку позже.' : value.available ? 'Доступен выпуск ' + value.available : manualRequested && value.checked_at ? 'Установлена последняя доступная версия' : 'Проверка наличия обновлений';
     if (value.enabled === false) {
       note.textContent = value.message || 'Системный механизм обновления временно недоступен.'; manual.disabled = true;
       if (submitted) progress.textContent = 'Системный механизм перезапускается. Ожидание статуса обновления…';
@@ -59,6 +67,7 @@
   }
   offer.addEventListener('click', () => {
     if (submitted || !state?.available) return;
+    checkDialog.close();
     target = state.available; title.textContent = 'Обновить CRDN до ' + target + '?';
     progress.textContent = ''; confirm.hidden = false; confirm.disabled = false; cancel.disabled = false; cancel.textContent = 'Отмена'; login.hidden = true;
     dialog.showModal();
@@ -78,11 +87,16 @@
     poll();
   });
   manual.addEventListener('click', async () => {
-    manual.disabled = true;
+    manualRequested = true; manual.disabled = true; note.textContent = 'Проверка выпусков…';
     try { render(await api('/check', true)); }
-    catch (error) { note.textContent = error.message; }
+    catch (error) { note.textContent = error.login ? error.message : 'Проверка не выполнена. Проверьте соединение и повторите.'; }
     finally { manual.disabled = state?.enabled === false || Boolean(state?.checking); }
   });
+  checkOffer.onclick = () => offer.click();
+  document.querySelector('#open-update-check').onclick = () => { checkDialog.showModal(); manual.click(); };
+  // Safe browser-only diagnostics: event codes, phases and HTTP status, no bodies or tokens.
+  let lastDiagnostic;
+  function diagnostic(code) { if (lastDiagnostic !== code) { console.info('[CRDN updates]', code); lastDiagnostic = code; } }
   async function poll() {
     try {
       const value = await api(''); disconnectedAt = null;
@@ -94,6 +108,7 @@
         progress.textContent = 'Запуск обновления не подтверждён. Проверьте наличие выпуска и повторите запрос.';
       }
     } catch (error) {
+      diagnostic(error.login ? 'reauth-required' : 'status-connection-lost');
       if (submitted) {
         disconnectedAt ||= Date.now();
         progress.textContent = error.login ? error.message : 'Связь с панелью временно потеряна. Ожидание перезапуска…';
