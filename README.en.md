@@ -10,7 +10,7 @@ No Docker, external monitoring services or heavyweight databases.
 
 [GitHub](https://github.com/GreyByDefault/CRDN-PUBLIC) · [Releases](https://github.com/GreyByDefault/CRDN-PUBLIC/releases)
 
-**v1.0.0-rc.14 is a Pre-release. Stable v1.0.0 is not available. From rc.13 with RC updates enabled, use the update button in the header; no reinstallation is needed.**
+**v1.0.0-rc.15 is a Pre-release. Stable v1.0.0 is not available. From rc.14 with RC updates enabled, use the update button in the header; no reinstallation is needed.**
 
 ## What CRDN looks like
 
@@ -169,10 +169,10 @@ Once connected, you can proceed to CRDN installation.
 Copy the installation command and run it on the server.
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.14/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.14'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.15/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.15'
 ```
 
-Paste the single line into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, even when the loader arrives through a pipe. This command explicitly selects v1.0.0-rc.14; production HTTPS is the default, without ACME staging.
+Paste the single line into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, even when the loader arrives through a pipe. This command explicitly selects v1.0.0-rc.15; production HTTPS is the default, without ACME staging.
 
 Once started, the installer:
 
@@ -181,7 +181,7 @@ Once started, the installer:
 3. Detects the installed web server: Caddy, Nginx or Apache.
 4. Asks for the domain or subdomain and a server name (up to 12 Unicode characters, including spaces).
 5. Checks DNS and the network ports needed for operation.
-6. Downloads CRDN from an official Release: stable by default, or the explicitly selected v1.0.0-rc.14 in the command above.
+6. Downloads CRDN from an official Release: stable by default, or the explicitly selected v1.0.0-rc.15 in the command above.
 7. Installs the application and configures automatic startup.
 8. Connects the dashboard to the web server and configures HTTPS.
 9. Checks the application and displays the dashboard address.
@@ -229,14 +229,16 @@ New versions are published on [GitHub Releases](https://github.com/GreyByDefault
 A separate command is used for updates:
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.14/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.14 --enable-rc-updates'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.15/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.15 --enable-rc-updates'
 ```
 
-Run the command from any directory. It currently selects rc.14 explicitly; without `--release v1.0.0-rc.14`, the bootstrap uses only the latest stable release and reports an error if none exists.
+Run the command from any directory. It currently selects rc.15 explicitly; without `--release v1.0.0-rc.15`, the bootstrap uses only the latest stable release and reports an error if none exists.
 
-On rc.13 with RC updates enabled, use the header update button. The manual command is for older installations or maintenance and explicitly enables the RC channel (`--enable-rc-updates`). Ordinary installations without this flag accept stable updates only.
+On rc.14 with RC updates enabled, use the header update button. The manual command is for older installations or maintenance and explicitly enables the RC channel (`--enable-rc-updates`). Ordinary installations without this flag accept stable updates only.
 
 Release checks run asynchronously at startup and at most once daily. Open ☰ → “Check for updates” for a rate-limited manual check. GitHub is primary and the mirror is fallback. The update dialog shows stages and the verified result; sign in again after restart. Accepting the request does not mean the update succeeded.
+
+Starting with rc.15, the confirmation dialog shows “What’s new” for the offered version, derived from its release notes. GitHub is primary and the mirror is fallback. Missing descriptions do not block confirmation. An installed rc.14 still uses its previous dialog for the first update to rc.15.
 
 Updates preserve:
 
@@ -263,7 +265,7 @@ Preliminary versions are installed separately, at the user's explicit choice.
 A separate command is provided to remove the application:
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.14/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.14'
+bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.15/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.15'
 ```
 
 Run the command from any directory. The release number selects the verified removal tools, not the version of the installation to be removed.

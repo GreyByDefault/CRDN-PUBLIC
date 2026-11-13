@@ -139,6 +139,37 @@ def main(argv=None):
         return subprocess.call(command)
 
 
+def parse_release_notes(tag, body):
+    """Derive bounded plain-text sections from the exact published Markdown body."""
+    if not isinstance(body, str) or len(body.encode('utf-8')) > 32768:
+        return None
+    sections = {'added': [], 'fixed': []}
+    headings = {'Добавлено': 'added', 'Исправлено': 'fixed', 'Added': 'added', 'Fixed': 'fixed'}
+    section = None
+    remaining = 1200
+    for line in body.splitlines():
+        title = re.fullmatch(r'#{1,6}\s+(.+?)\s*', line)
+        if title:
+            section = headings.get(title[1])
+        elif section and re.match(r'^\s*[-*]\s+', line) and remaining > 0:
+            text = ' '.join(re.sub(r'^\s*[-*]\s+', '', line).split())
+            text = ''.join(c for c in text if c.isprintable())[:min(240, remaining)]
+            if text and len(sections[section]) < 12:
+                sections[section].append(text)
+                remaining -= len(text)
+    return dict(version=tag, **sections) if any(sections.values()) else None
+
+
+def valid_release_notes(value, tag):
+    if not isinstance(value, dict) or set(value) != {'version', 'added', 'fixed'} or value['version'] != tag:
+        return None
+    if any(not isinstance(value[k], list) or len(value[k]) > 12 or any(not isinstance(t, str) or not t or len(t) > 240 or not t.isprintable() for t in value[k]) for k in ('added', 'fixed')):
+        return None
+    if sum(len(t) for k in ('added', 'fixed') for t in value[k]) > 1200 or not (value['added'] or value['fixed']):
+        return None
+    return value
+
+
 if __name__ == '__main__':
     try:
         raise SystemExit(main())

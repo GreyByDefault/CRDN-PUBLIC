@@ -31,3 +31,31 @@
 .theme-setting { display:grid; gap:8px; margin-top:24px; font-size:13px; }
 .theme-setting select { font:inherit; padding:10px; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:8px; }
 .theme-setting select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+/* Shared settings rhythm: real content gaps, no empty error rows. */
+.settings-dialog .settings-section, .settings-dialog .server-settings { margin:0; padding:16px 0 0; border:0; border-top:1px solid var(--line); }
+.settings-dialog .theme-setting { padding-top:0; border-top:0; }
+.settings-dialog .account-section { margin-top:16px; }
+.settings-dialog h3 { margin:0 0 12px; font-size:16px; line-height:1.35; }
+.settings-dialog .auth-form { gap:12px; }
+.settings-dialog .auth-form label { gap:6px; }
+.settings-dialog .auth-error:empty { display:none; }
+.settings-dialog .auth-hint { margin:0; }
+.settings-dialog .server-settings { margin-top:16px; }
+.settings-dialog .server-settings h3 { margin:0; }
+.theme-options { display:flex; gap:10px; }
+.theme-options button { flex:1; min-height:44px; min-width:0; }
+.theme-options button[aria-pressed="true"] { border-color:var(--accent); background:var(--accent); color:var(--button-text); font-weight:600; }
+.auth-dialog button[hidden] { display:none; }
+.check-actions { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-top:12px; }
+#check-dialog p { margin:10px 0; }
+#about-dialog > [data-close] { display:block; margin:16px auto 0; }
+#release-notes { margin:12px 0; }
+#release-notes h3 { font-size:16px; margin:0 0 10px; }
+#release-notes-content { max-height: min(34dvh, 260px); overflow-y:auto; overflow-wrap:anywhere; padding-right:8px; }
+#release-notes-content h4 { margin:8px 0; font-size:14px; }
+#release-notes-content ul { padding-left:22px; margin:8px 0; font-size:14px; line-height:1.5; }
+#update-dialog .auth-controls { position:sticky; bottom:-28px; padding:12px 0; background:var(--card); }
+
+.settings-dialog .theme-setting { display:block; }
+.settings-dialog .auth-controls button, .settings-dialog input { min-height:44px; }

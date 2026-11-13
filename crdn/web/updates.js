@@ -33,9 +33,35 @@
     if (!response.ok || value.error) throw Error(value.error || 'Не удалось выполнить запрос.');
     return value;
   }
+  function renderNotes(value) {
+    document.querySelector('#update-versions').textContent = 'Установлена: ' + (value.current || 'не определена') + ' → Доступна: ' + target;
+    const content = document.querySelector('#release-notes-content');
+    content.replaceChildren();
+    const notes = value.release_notes;
+    if (!notes || notes.version !== target || value.available !== target || !['added','fixed'].every(k => Array.isArray(notes[k]) && notes[k].every(t => typeof t === 'string'))) {
+      content.textContent = 'Список изменений временно недоступен. Можно подтвердить обновление выбранной версии.';
+      return;
+    }
+    let remaining = 1200, found = false;
+    for (const [key, label] of [['added','Добавлено'],['fixed','Исправлено']]) {
+      const lines = notes[key].slice(0,12).filter(Boolean);
+      if (!lines.length || !remaining) continue;
+      found = true;
+      const heading = document.createElement('h4'), list = document.createElement('ul');
+      heading.textContent = label;
+      for (const text of lines) {
+        if (!remaining) break;
+        const item = document.createElement('li'), clipped = [...text].slice(0,Math.min(240,remaining));
+        item.textContent = clipped.join(''); remaining -= clipped.length; list.append(item);
+      }
+      content.append(heading,list);
+    }
+    if (!found) content.textContent = 'Список изменений временно недоступен. Можно подтвердить обновление выбранной версии.';
+  }
   function render(value) {
     diagnostic(value.enabled === false ? 'controller-unavailable' : value.operation?.phase || (value.check_error ? 'source-unavailable' : 'idle'));
     state = value;
+    if (dialog.open && !submitted) renderNotes(value);
     version.textContent = 'Версия: ' + (value.current || 'не определена');
     document.querySelector('#about-version').textContent = version.textContent;
     checkOffer.hidden = !value.available;
@@ -53,11 +79,13 @@
     const operation = value.operation;
     if (!operation) return;
     if (busy.has(operation.phase)) {
+      document.querySelector('#release-notes').hidden = true;
       target = operation.target; remembered(target); submitted = true; window.crdnUpdateActive = true;
       title.textContent = 'Обновление CRDN до ' + target;
       progress.textContent = phases[operation.phase]; confirm.disabled = true; cancel.disabled = true;
       if (!dialog.open) dialog.showModal();
     } else if ((submitted && operation.target === target) || remembered() === operation.target) {
+      document.querySelector('#release-notes').hidden = true;
       if (remembered() === operation.target) { title.textContent = 'Результат обновления CRDN'; if (!dialog.open) dialog.showModal(); remembered(null); }
       window.crdnUpdateActive = false; submitted = false; cancel.disabled = false;
       confirm.hidden = true; cancel.textContent = 'Закрыть';
@@ -70,6 +98,8 @@
     checkDialog.close();
     target = state.available; title.textContent = 'Обновить CRDN до ' + target + '?';
     progress.textContent = ''; confirm.hidden = false; confirm.disabled = false; cancel.disabled = false; cancel.textContent = 'Отмена'; login.hidden = true;
+    document.querySelector('#release-notes').hidden = false;
+    renderNotes(state);
     dialog.showModal();
   });
   cancel.addEventListener('click', () => { if (!submitted) dialog.close(); });

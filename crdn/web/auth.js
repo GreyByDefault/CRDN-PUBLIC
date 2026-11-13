@@ -92,29 +92,27 @@
     <p>Логин и пароль admin / admin известны всем. Настоятельно рекомендуем заменить их. Можно сделать это позже в разделе «Учётная запись».</p>
     <div class="auth-controls"><button type="button" class="notice-cancel">Отмена</button><button type="button" class="auth-primary notice-change">Изменить</button></div>`;
   const dialog = document.createElement('dialog');
-  dialog.className = 'auth-dialog'; dialog.setAttribute('aria-labelledby', 'account-title');
+  dialog.className = 'auth-dialog settings-dialog'; dialog.setAttribute('aria-labelledby', 'account-title');
   dialog.innerHTML = `<button type="button" class="auth-close" aria-label="Закрыть">×</button>
-    <h2 id="account-title">Настройки</h2><h3>Учётная запись</h3><form class="auth-form">
+    <h2 id="account-title">Настройки</h2><section class="settings-section account-section"><h3>Учётная запись</h3><form class="auth-form account-form">
     <label>Текущий логин<input name="current_username" readonly autocomplete="off"></label>
     <label>Текущий пароль<span class="password-field"><input id="account-current-password" aria-label="Текущий пароль" name="current_password" type="password" autocomplete="current-password" required maxlength="256"><button type="button" aria-controls="account-current-password" aria-pressed="false">Показать</button></span></label>
     <label>Новый логин<input name="username" autocomplete="username" required maxlength="64"></label>
     <label>Новый пароль<span class="password-field"><input id="account-new-password" aria-label="Новый пароль" name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="256"><button type="button" aria-controls="account-new-password" aria-pressed="false">Показать</button></span></label>
     <label>Повтор нового пароля<span class="password-field"><input id="account-repeat-password" aria-label="Повтор нового пароля" name="password_confirm" type="password" autocomplete="new-password" required minlength="8" maxlength="256"><button type="button" aria-controls="account-repeat-password" aria-pressed="false">Показать</button></span></label>
     <p class="auth-hint">Пароль: от 8 до 256 символов. Другие активные сессии будут завершены.</p>
-    <p class="auth-error" role="alert"></p><div class="auth-controls"><button type="button" class="account-cancel">Отмена</button><button type="submit" class="auth-primary">Сохранить</button></div></form>`;
+    <p class="auth-error" role="alert"></p><div class="auth-controls"><button type="button" class="account-cancel">Отмена</button><button type="submit" class="auth-primary">Сохранить</button></div></form></section>`;
   document.body.append(notice, dialog);
   const settingsForm = document.createElement('form');
   settingsForm.className = 'auth-form server-settings';
   settingsForm.innerHTML = '<h3>Название сервера</h3><label>Название сервера<input name="server_name" autocomplete="off" placeholder="До 12 символов"></label><p class="auth-error" role="status"></p><div class="auth-controls"><button type="button" data-later>Позже</button><button type="submit" class="auth-primary">Сохранить</button></div>';
-  dialog.append(settingsForm);
-  const themeLabel = document.createElement('label');
-  themeLabel.className = 'theme-setting';
-  themeLabel.textContent = 'Тема оформления';
-  const themeSelect = document.createElement('select');
-  themeSelect.innerHTML = '<option value="dark">Тёмная</option><option value="light">Светлая</option>';
-  themeSelect.value = document.documentElement.dataset.theme || 'dark';
-  themeSelect.onchange = () => window.crdnApplyTheme(themeSelect.value);
-  themeLabel.append(themeSelect); dialog.append(themeLabel);
+  dialog.insertBefore(settingsForm, dialog.querySelector('.account-section'));
+  const themeSection = document.createElement('section');
+  themeSection.className = 'settings-section theme-setting';
+  themeSection.innerHTML = '<h3 id="theme-title">Тема оформления</h3><div class="theme-options" role="group" aria-labelledby="theme-title"><button type="button" data-theme="light" aria-pressed="false">Светлая</button><button type="button" data-theme="dark" aria-pressed="false">Тёмная</button></div>';
+  function syncTheme() { themeSection.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === document.documentElement.dataset.theme))); }
+  themeSection.querySelectorAll('button').forEach(b => b.onclick = () => { window.crdnApplyTheme(b.dataset.theme); syncTheme(); });
+  dialog.insertBefore(themeSection, settingsForm); syncTheme();
   settingsForm.querySelector('[data-later]').onclick = () => dialog.close();
   settingsForm.onsubmit = async event => {
     event.preventDefault();
@@ -127,11 +125,11 @@
       const response = await fetch('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf_token}, body: JSON.stringify({server_name:name})});
       const value = await response.json();
       if (!response.ok) throw Error(value.error || 'Не удалось сохранить название.');
-      window.crdnSetServerName(value.server_name); status.textContent = 'Название сохранено.';
+      window.crdnSetServerName(value.server_name); settingsForm.querySelector('[data-later]').hidden = Boolean(value.server_name); status.textContent = 'Название сохранено.';
     } catch (failure) { showError(status, failure); }
     finally { button.disabled = false; }
   };
-  const form = dialog.querySelector('form'), error = form.querySelector('.auth-error');
+  const form = dialog.querySelector('.account-form'), error = form.querySelector('.auth-error');
   const passwordToggles = [...dialog.querySelectorAll('[aria-controls]')];
   passwordToggles.forEach(bindPasswordToggle);
   async function dismiss() {
@@ -149,8 +147,8 @@
     }
     error.textContent = '';
     settingsForm.querySelector('[role="status"]').textContent = '';
-    try { const r = await fetch('/api/settings', {cache:'no-store'}); if (r.ok) settingsForm.elements.server_name.value = (await r.json()).server_name; } catch {}
-    dialog.showModal();
+    try { const r = await fetch('/api/settings', {cache:'no-store'}); if (r.ok) { const name = (await r.json()).server_name; settingsForm.elements.server_name.value = name; settingsForm.querySelector('[data-later]').hidden = Boolean(name); } } catch {}
+    syncTheme(); dialog.showModal();
   }
   function closeAccount() { dialog.close(); form.reset(); error.textContent = ''; }
   notice.querySelector('.auth-close').onclick = dismiss;

@@ -93,6 +93,21 @@ def latest():
     return max(allowed, key=version) if allowed else None
 
 
+def release_notes(tag):
+    # Optional metadata cannot affect version/channel choice or download URLs.
+    for url in (bootstrap.API + 'tags/' + tag, bootstrap.MIRROR + '/releases/' + tag + '/release.json'):
+        try:
+            data = json.loads(bootstrap.fetch(url))
+            if not isinstance(data, dict) or data.get('tag_name') != tag:
+                continue
+            notes = bootstrap.parse_release_notes(tag, data.get('body'))
+            if notes:
+                return notes
+        except (OSError, TimeoutError, ValueError, TypeError):
+            continue
+    return None
+
+
 def check(manual=False):
     global CHECKING
     with LOCK:
@@ -106,6 +121,8 @@ def check(manual=False):
         try:
             tag = latest()
             result = dict(checked_at=time.time(), tag=tag, error=False)
+            try: result['release_notes'] = release_notes(tag) if tag else None
+            except Exception: result['release_notes'] = None
         except Exception:
             result = dict(checked_at=time.time(), tag=None, error=True)
         with LOCK:
@@ -133,7 +150,7 @@ def status():
     except ValueError: available = None
     return dict(enabled=True, available=available, channel=channel(), checking=CHECKING,
                 checked_at=checked.get('checked_at'), check_error=checked.get('error', False),
-                operation=running)
+                operation=running, release_notes=bootstrap.valid_release_notes(checked.get('release_notes'), available) if available else None)
 
 
 def dispatch(command):
@@ -226,7 +243,7 @@ def serve():
                     command = raw.decode('ascii').rstrip('\n')
                     if raw != (command + '\n').encode() or len(raw) > 80: raise ValueError('Invalid request')
                     result = dispatch(command)
-                    connection.sendall((json.dumps(result) + '\n').encode())
+                    connection.sendall((json.dumps(result, ensure_ascii=False) + '\n').encode())
                 except (OSError, ValueError, KeyError):
                     connection.sendall(b'{"error":"Invalid update request"}\n')
             check()
