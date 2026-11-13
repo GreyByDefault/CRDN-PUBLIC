@@ -9,8 +9,8 @@ from .auth import AuthError
 
 
 def validate_name(value):
-    if not isinstance(value, str) or len(value) > 12 or any(unicodedata.category(c).startswith('C') for c in value):
-        raise AuthError(400, 'Название: не более 12 символов, без управляющих знаков.')
+    if not isinstance(value, str) or len(value) > 24 or any(unicodedata.category(c).startswith('C') for c in value):
+        raise AuthError(400, 'Название: не более 24 символов, без управляющих знаков.')
     return value.strip()
 
 

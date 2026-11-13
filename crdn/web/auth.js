@@ -105,7 +105,7 @@
   document.body.append(notice, dialog);
   const settingsForm = document.createElement('form');
   settingsForm.className = 'auth-form server-settings';
-  settingsForm.innerHTML = '<h3>Название сервера</h3><label>Название сервера<input name="server_name" autocomplete="off" placeholder="До 12 символов"></label><p class="auth-error" role="status"></p><div class="auth-controls"><button type="button" data-later>Позже</button><button type="submit" class="auth-primary">Сохранить</button></div>';
+  settingsForm.innerHTML = '<h3>Название сервера</h3><label>Название сервера<input name="server_name" autocomplete="off" placeholder="До 24 символов" aria-describedby="server-name-status"></label><p id="server-name-status" class="auth-error name-status" role="status"></p><div class="auth-controls"><button type="button" data-later>Позже</button><button type="submit" class="auth-primary">Сохранить</button></div>';
   dialog.insertBefore(settingsForm, dialog.querySelector('.account-section'));
   const themeSection = document.createElement('section');
   themeSection.className = 'settings-section theme-setting';
@@ -114,19 +114,28 @@
   themeSection.querySelectorAll('button').forEach(b => b.onclick = () => { window.crdnApplyTheme(b.dataset.theme); syncTheme(); });
   dialog.insertBefore(themeSection, settingsForm); syncTheme();
   settingsForm.querySelector('[data-later]').onclick = () => dialog.close();
+  const nameInput = settingsForm.elements.server_name;
+  const nameStatus = settingsForm.querySelector('.name-status');
+  function nameError(message) { nameStatus.dataset.state = 'error'; nameStatus.textContent = message; }
+  function updateNameStatus(prefix = '') {
+    const remaining = 24 - [...nameInput.value].length;
+    if (remaining < 0) { nameError('Превышено на ' + (-remaining) + ' символов. Максимум 24.'); return; }
+    nameStatus.dataset.state = 'ready';
+    nameStatus.textContent = prefix + 'Осталось ' + remaining + ' символов';
+  }
+  nameInput.addEventListener('input', () => updateNameStatus());
   settingsForm.onsubmit = async event => {
     event.preventDefault();
-    const status = settingsForm.querySelector('[role="status"]');
     const name = settingsForm.elements.server_name.value;
-    if ([...name].length > 12) { status.textContent = 'Не более 12 символов, включая пробелы.'; return; }
+    if ([...name].length > 24) { nameError('Не более 24 символов, включая пробелы.'); return; }
     const button = settingsForm.querySelector('[type="submit"]'); button.disabled = true;
     try {
       await loadSession();
       const response = await fetch('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf_token}, body: JSON.stringify({server_name:name})});
       const value = await response.json();
       if (!response.ok) throw Error(value.error || 'Не удалось сохранить название.');
-      window.crdnSetServerName(value.server_name); settingsForm.querySelector('[data-later]').hidden = Boolean(value.server_name); status.textContent = 'Название сохранено.';
-    } catch (failure) { showError(status, failure); }
+      window.crdnSetServerName(value.server_name); nameInput.value = value.server_name; settingsForm.querySelector('[data-later]').hidden = Boolean(value.server_name); updateNameStatus('Название сохранено. ');
+    } catch (failure) { nameError(failure.message || 'Не удалось сохранить название. Повторите попытку.'); }
     finally { button.disabled = false; }
   };
   const form = dialog.querySelector('.account-form'), error = form.querySelector('.auth-error');
@@ -146,9 +155,9 @@
       button.textContent = 'Показать'; button.setAttribute('aria-pressed', 'false');
     }
     error.textContent = '';
-    settingsForm.querySelector('[role="status"]').textContent = '';
+    updateNameStatus();
     try { const r = await fetch('/api/settings', {cache:'no-store'}); if (r.ok) { const name = (await r.json()).server_name; settingsForm.elements.server_name.value = name; settingsForm.querySelector('[data-later]').hidden = Boolean(name); } } catch {}
-    syncTheme(); dialog.showModal();
+    updateNameStatus(); syncTheme(); dialog.showModal();
   }
   function closeAccount() { dialog.close(); form.reset(); error.textContent = ''; }
   notice.querySelector('.auth-close').onclick = dismiss;

@@ -565,10 +565,10 @@ def update_result(state):
 def install(args, content):
     domain = (args.domain or input('Введите домен или поддомен для панели, без https://: ')).strip().lower()
     while True:
-        server_name = input('Название сервера (до 12 символов, включая пробелы): ')
-        if server_name.strip() and len(server_name) <= 12 and not any(unicodedata.category(c).startswith('C') for c in server_name):
+        server_name = input('Название сервера (до 24 символов, включая пробелы): ')
+        if server_name.strip() and len(server_name) <= 24 and not any(unicodedata.category(c).startswith('C') for c in server_name):
             server_name = server_name.strip(); break
-        print('Введите от 1 до 12 символов без управляющих знаков. Название не обрезается.')
+        print('Введите от 1 до 24 символов без управляющих знаков. Название не обрезается.')
     new_account = not (DATA / 'owner.json').exists()
     print('Проверка сервера, домена и веб-сервера…', flush=True)
     # DNS ownership first; fresh hosts cannot yet accept port 80/443 connections.

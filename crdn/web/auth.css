@@ -59,3 +59,9 @@
 
 .settings-dialog .theme-setting { display:block; }
 .settings-dialog .auth-controls button, .settings-dialog input { min-height:44px; }
+
+/* A fixed two-line status slot keeps name actions steady while editing. */
+.settings-dialog .server-settings .name-status { display:block; block-size:3.2em; min-block-size:3.2em; overflow:auto; margin:0; font-size:12px; line-height:1.6; color:var(--muted); }
+.settings-dialog .server-settings .name-status[data-state="error"] { color:var(--warning); }
+.about-links { display:flex; flex-wrap:wrap; gap:12px 24px; align-items:baseline; }
+.about-links a { display:inline-block; }
