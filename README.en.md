@@ -253,7 +253,7 @@ Preliminary versions are installed separately, at the user's explicit choice.
 
 A separate command is provided to remove the application:
 
-UN```sh
+```sh
 bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.12/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.12'
 ```
 
