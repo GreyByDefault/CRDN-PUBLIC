@@ -17,6 +17,7 @@
   document.querySelector('#about-button').onclick = () => document.querySelector('#about-dialog').showModal();
   window.crdnSetServerName = name => {
     document.querySelector('#server-name').textContent = name || 'Сервер';
+    document.querySelector('meta[name="apple-mobile-web-app-title"]').content = name || 'CRDN';
     document.title = name ? name + ' — CRDN' : 'CRDN — Server Monitor';
     // Revalidate the stable manifest URL; OS launcher labels may update later.
     const link = document.querySelector('#pwa-manifest'); link.removeAttribute('href'); link.href = '/manifest.webmanifest';

@@ -7,7 +7,7 @@
   const confirm = document.querySelector('#update-confirm'), cancel = document.querySelector('#update-cancel');
   const manual = document.querySelector('#update-check'), note = document.querySelector('#update-check-note');
   const checkDialog = document.querySelector('#check-dialog'), checkOffer = document.querySelector('#check-offer');
-  let manualRequested = false;
+  let manualRequested = false, manualError = false;
   const login = document.querySelector('#update-login');
   const phases = {queued: 'Обновление ожидает запуска…', download: 'Скачивание выпуска…', verify: 'Проверка файлов…',
     server: 'Проверка сервера и загрузка приложения…', probe: 'Пробный запуск с временными данными…',
@@ -43,7 +43,7 @@
     document.querySelector('#update-channel').textContent = value.channel === 'rc' ? 'Включён тестовый канал RC.' : 'Канал стабильных выпусков.';
     offer.hidden = !value.available;
     if (value.available) offer.textContent = 'Доступна ' + value.available + ' · Обновить';
-    note.textContent = value.checking ? 'Проверка выпусков…' : value.check_error ? 'Источники временно недоступны. Повторите проверку позже.' : value.available ? 'Доступен выпуск ' + value.available : manualRequested && value.checked_at ? 'Установлена последняя доступная версия' : 'Проверка наличия обновлений';
+    note.textContent = manualError ? 'Проверка не выполнена. Проверьте соединение и повторите.' : value.checking ? 'Проверка выпусков…' : value.check_error ? 'Источники временно недоступны. Повторите проверку позже.' : value.available ? 'Доступен выпуск ' + value.available : manualRequested && value.checked_at ? 'Установлена последняя доступная версия' : 'Проверка наличия обновлений';
     if (value.enabled === false) {
       note.textContent = value.message || 'Системный механизм обновления временно недоступен.'; manual.disabled = true;
       if (submitted) progress.textContent = 'Системный механизм перезапускается. Ожидание статуса обновления…';
@@ -87,9 +87,9 @@
     poll();
   });
   manual.addEventListener('click', async () => {
-    manualRequested = true; manual.disabled = true; note.textContent = 'Проверка выпусков…';
+    manualRequested = true; manualError = false; manual.disabled = true; note.textContent = 'Проверка выпусков…';
     try { render(await api('/check', true)); }
-    catch (error) { note.textContent = error.login ? error.message : 'Проверка не выполнена. Проверьте соединение и повторите.'; }
+    catch (error) { manualError = true; note.textContent = error.login ? error.message : 'Проверка не выполнена. Проверьте соединение и повторите.'; }
     finally { manual.disabled = state?.enabled === false || Boolean(state?.checking); }
   });
   checkOffer.onclick = () => offer.click();
