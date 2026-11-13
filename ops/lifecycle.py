@@ -703,13 +703,13 @@ def check_dns(domain):
         raise ValueError('Все DNS-записи A/AAAA должны указывать на публичные адреса этого сервера. NAT/CDN требуют ручной настройки.')
 
 
-def uninstall(state):
-    owned_check(state)
+def removal_check(state, resuming=False):
     allowed = {str(ROOT / 'current')}
     for folder, files in state.get('releases', {}).items():
         allowed.update(str(Path(folder) / name) for name in files)
         for name, expected in files.items():
             path = Path(folder) / name
+            if resuming and not path.exists() and not path.is_symlink(): continue
             if path.is_symlink() or not path.is_file() or digest(path.read_bytes()) != expected:
                 raise ValueError('Release file changed; manual reconciliation required: ' + str(path))
     for path in ROOT.rglob('*') if ROOT.exists() else []:
@@ -723,14 +723,101 @@ def uninstall(state):
         for path in UPDATER_CODE.rglob('*'):
             if path.is_symlink() or (path.is_file() and str(path) not in state['files']):
                 raise ValueError('Неучтённый файл веб-обновления сохранён: ' + str(path))
-    account = None
-    if (META / 'account.json').exists():
-        account = pwd.getpwnam('crdn-managed')
-        if json.loads((META / 'account.json').read_text()) != {'uid': account.pw_uid} or account.pw_dir != str(DATA) or account.pw_shell != '/usr/sbin/nologin':
-            raise ValueError('Service account changed; manual reconciliation required')
-        group = grp.getgrnam('crdn-managed')
-        if group.gr_gid != account.pw_gid or set(group.gr_mem) - {'crdn-managed'} or any(u.pw_gid == group.gr_gid and u.pw_name != 'crdn-managed' for u in pwd.getpwall()):
-            raise ValueError('Service group is shared; manual reconciliation required')
+            if path.is_file() and digest(path.read_bytes()) != state['files'][str(path)]:
+                raise ValueError('Updater file changed; manual reconciliation required: ' + str(path))
+
+    if resuming:
+        if META.exists():
+            allowed_meta = {STATE.name, JOURNAL.name, 'account.json', 'update-channel.json', 'acme'}
+            if any(p.name not in allowed_meta or p.is_symlink() for p in META.iterdir()):
+                raise ValueError('Unexpected metadata resource preserved')
+        for name in state['files']:
+            path = Path(name)
+            if name != '/etc/caddy/Caddyfile' and not path.is_relative_to(UPDATER_CODE) and (path.exists() or path.is_symlink()):
+                raise ValueError('Detached resource reappeared; manual reconciliation required: ' + name)
+        if run('systemctl', 'show', UNIT, '-p', 'MainPID', '--value', check=False).strip() not in ('', '0'):
+            raise ValueError('CRDN is running; cleanup refused')
+
+
+def removal_identity(state):
+    identity = state.get('cleanup_account')
+    marker = META / 'account.json'
+    if identity is None and marker.exists():
+        uid = json.loads(marker.read_text())['uid']
+        try: account = pwd.getpwnam('crdn-managed')
+        except KeyError:
+            try: grp.getgrnam('crdn-managed')
+            except KeyError: return None
+            raise ValueError('Cannot establish ownership of remaining service group')
+        identity = dict(uid=uid, gid=account.pw_gid)
+    if identity is None: return None
+    if marker.exists() and json.loads(marker.read_text()) != {'uid': identity['uid']}:
+        raise ValueError('Service account marker changed; manual reconciliation required')
+    try: account = pwd.getpwnam('crdn-managed')
+    except KeyError: account = None
+    if account and (account.pw_uid != identity['uid'] or account.pw_gid != identity['gid'] or account.pw_dir != str(DATA) or account.pw_shell != '/usr/sbin/nologin'):
+        raise ValueError('Service account changed; manual reconciliation required')
+    try: group = grp.getgrnam('crdn-managed')
+    except KeyError: group = None
+    if group and (group.gr_gid != identity['gid'] or set(group.gr_mem) - {'crdn-managed'} or any(u.pw_gid == group.gr_gid and u.pw_name != 'crdn-managed' for u in pwd.getpwall())):
+        raise ValueError('Service group is shared; manual reconciliation required')
+    return identity
+
+
+def finish_removal(state):
+    removal_check(state, resuming=True)
+    identity = removal_identity(state)
+    if identity and state.get('cleanup_account') is None:
+        state['cleanup_account'] = identity
+        save(STATE, state)
+    if ROOT.exists(): shutil.rmtree(ROOT)
+    if (META / 'acme').exists(): shutil.rmtree(META / 'acme')
+    if ACME_WEBROOT.is_symlink(): raise ValueError('ACME webroot replaced by symlink')
+    if ACME_WEBROOT.exists(): shutil.rmtree(ACME_WEBROOT)
+    for folder in (HELPER_DIR, CADDY_SITE_DIR):
+        if folder.is_symlink(): raise ValueError('Owned helper directory replaced by symlink')
+        if folder.exists():
+            try: folder.rmdir()  # Never recursively remove unexpected neighboring files.
+            except OSError:
+                if any(folder.iterdir()): raise ValueError('Unexpected files in owned helper directory: ' + str(folder))
+                raise
+    for folder in (UPDATER_CODE, UPDATER_DATA, UPDATER_RUN):
+        if folder.exists(): shutil.rmtree(folder)
+    if DATA.exists(): shutil.rmtree(DATA)
+    if identity:
+        # Recheck before each identity operation; an interrupted retry must not touch a reused name.
+        removal_identity(state)
+        try: pwd.getpwnam('crdn-managed')
+        except KeyError: pass
+        else: run('userdel', 'crdn-managed')
+        removal_identity(state)
+        try: grp.getgrnam('crdn-managed')
+        except KeyError: pass
+        else: run('groupdel', 'crdn-managed')
+    # Keep installation.json until all physical/identity cleanup is complete.
+    # A retry never loses the evidence needed to check its remaining resources.
+    if META.exists():
+        allowed = {STATE.name, JOURNAL.name, 'account.json', 'update-channel.json'}
+        for path in META.iterdir():
+            if path.name not in allowed or path.is_symlink() or not path.is_file():
+                raise ValueError('Unexpected metadata resource preserved: ' + str(path))
+        for path in META.iterdir():
+            if path != STATE: path.unlink()
+        STATE.unlink(missing_ok=True)
+        META.rmdir()
+    print('Проверка результата удаления…', flush=True)
+    if any(p.exists() for p in (ROOT, DATA, META)):
+        raise RuntimeError('Удаление завершено не полностью; остались файлы CRDN.')
+    print('CRDN удалён. Приложение и его учётные данные удалены')
+
+
+def uninstall(state):
+    if state.get('phase') in ('cleaning', 'removed'):
+        finish_removal(state)
+        return
+    owned_check(state)
+    removal_check(state)
+    identity = removal_identity(state)
     run('systemctl', 'disable', '--now', 'crdn-updater.service', check=False)
     run('systemctl', 'stop', 'crdn-managed-update.service', check=False)
     print('Удаление CRDN, конфигурации и всех его пользовательских данных, включая учётную запись…', flush=True)
@@ -755,8 +842,8 @@ def uninstall(state):
         if previous_phase != 'preparing':
             reload(state['web'])
         run('systemctl', 'daemon-reload')
-        state['phase'] = 'removed'
-        state['files'] = {}
+        state['phase'] = 'cleaning'
+        if identity: state['cleanup_account'] = identity
         tx.write(STATE, (json.dumps(state, indent=2) + '\n').encode(), 0o600)
         tx.commit()
     except BaseException:
@@ -769,31 +856,7 @@ def uninstall(state):
         state['phase'] = 'installed'
         save(STATE, state)
         raise
-    if ROOT.exists(): shutil.rmtree(ROOT)
-    # Isolated Certbot config belongs exclusively to this installation. Shared Caddy storage is preserved.
-    shutil.rmtree(META / 'acme', ignore_errors=True)
-    if ACME_WEBROOT.exists(): shutil.rmtree(ACME_WEBROOT)
-    for folder in (HELPER_DIR, CADDY_SITE_DIR):
-        if folder.exists():
-            try:
-                folder.rmdir()
-            except OSError:
-                pass
-    for folder in (UPDATER_CODE, UPDATER_DATA, UPDATER_RUN):
-        if folder.exists(): shutil.rmtree(folder)
-    if DATA.exists(): shutil.rmtree(DATA)
-    if account is not None:
-        run('userdel', 'crdn-managed')
-        try: grp.getgrnam('crdn-managed')
-        except KeyError: pass
-        else: run('groupdel', 'crdn-managed')
-    # Includes account ownership marker, release manifests and internal backups;
-    # external backups and shared Caddy certificate storage are outside META.
-    if META.exists(): shutil.rmtree(META)
-    print('Проверка результата удаления…', flush=True)
-    if any(p.exists() for p in (ROOT, DATA, META)):
-        raise RuntimeError('Удаление завершено не полностью; остались файлы CRDN.')
-    print('CRDN удалён. Приложение и его учётные данные удалены')
+    finish_removal(state)
 
 
 def main():
@@ -843,6 +906,9 @@ def main():
                 save(STATE, recovered)
         state = json.loads(STATE.read_text()) if STATE.exists() else None
         if args.operation == 'recover':
+            if state and state['phase'] in ('cleaning', 'removed'):
+                print('Удаление отсоединено. Продолжите завершающую очистку через uninstall.sh.')
+                return
             if state and state.get('pending'):
                 old = state['pending']['old']
                 if old:
@@ -874,6 +940,8 @@ def main():
             if state:
                 uninstall(state)
             else:
+                if META.exists() and not META.is_symlink() and not any(META.iterdir()) and not ROOT.exists() and not DATA.exists():
+                    META.rmdir()  # Interrupted between deleting the final state file and rmdir.
                 print('CRDN не установлен. Удалять нечего.')
             return
         if state:
@@ -912,7 +980,7 @@ if __name__ == '__main__':
             except (OSError, ValueError): saved = {}
             if saved.get('pending'): print('Переключение версии не завершено; требуется восстановление.', file=sys.stderr)
             elif saved.get('phase') == 'installed': print('Состояние установки сохранено. Завершение операции не подтверждено; данные входа не сбрасывались.', file=sys.stderr)
-            elif saved.get('phase') == 'removed': print('Служба отключена; удаление ресурсов не завершено. Повторите удаление.', file=sys.stderr)
+            elif saved.get('phase') in ('cleaning', 'removed'): print('Служба отключена; удаление ресурсов не завершено. Повторите удаление.', file=sys.stderr)
             else: print('Остались ресурсы незавершённой установки; их состояние сохранено для восстановления/удаления.', file=sys.stderr)
         else: print('Активная установка этой операцией не подтверждена.', file=sys.stderr)
         raise SystemExit('Причина: ' + str(error))

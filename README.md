@@ -169,10 +169,10 @@ ssh root@203.0.113.10
 Скопируйте установочную команду и выполните её на сервере.
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.16/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.16'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh install --release "$v" < /dev/tty'
 ```
 
-Вставьте одну строку в SSH-сеанс. Загрузчик получает полный комплект из официального Release, проверяет SHA-256 и запускает существующий установщик. При ошибке HTTPS или контрольной суммы выполнение прекращается. Ввод домена и пароля sudo остаётся интерактивным через /dev/tty, даже когда загрузчик передан через pipe. Эта команда явно выбирает v1.0.0-rc.16; production HTTPS включён по умолчанию, без ACME staging.
+Вставьте одну строку в SSH-сеанс. Команда получает shell-загрузчик и его SHA-256 с GitHub, при сетевой ошибке — с зеркала того же тега; проверяет точное имя и сумму до запуска. Загрузчик затем получает и проверяет полный комплект из официального Release и вызывает существующий установщик. При ошибке HTTPS или контрольной суммы выполнение прекращается. Ввод домена и пароля sudo остаётся интерактивным через /dev/tty, при запуске загрузчика из временного файла. Эта команда явно выбирает v1.0.0-rc.16; production HTTPS включён по умолчанию, без ACME staging.
 
 После запуска установщик самостоятельно:
 
@@ -229,7 +229,7 @@ CRDN поддерживает Caddy, Nginx и Apache.
 Для обновления используется отдельная команда:
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.16/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.16 --enable-rc-updates'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh update --release "$v" --enable-rc-updates < /dev/tty'
 ```
 
 Команду можно выполнить из любого каталога. Сейчас она явно выбирает rc.16; без `--release v1.0.0-rc.16` загрузчик использует только последний стабильный выпуск и сообщает об ошибке, если его нет.
@@ -265,7 +265,7 @@ bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https
 Для удаления программы предусмотрена отдельная команда:
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.16/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.16'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh uninstall --release "$v" < /dev/tty'
 ```
 
 Команда работает из любого каталога. Номер выпуска здесь выбирает проверенный комплект инструментов удаления, а не версию удаляемой установки.

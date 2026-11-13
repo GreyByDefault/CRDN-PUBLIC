@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import hmac
 import json
+import re
 import os
 from pathlib import Path
 import secrets
@@ -14,6 +15,11 @@ import time
 COOKIE = '__Host-crdn-session'
 SESSION_TTL = 30 * 60
 PREAUTH_TTL = 900
+AUTH_SESSION_LIMIT = 512
+PREAUTH_BURST = 64
+PREAUTH_PER_SECOND = 4
+# Successful logins are already capped at 30/min: <=450 consumed tokens per 15min.
+CONSUMED_PREAUTH_LIMIT = 512
 
 
 class AuthError(Exception):
@@ -47,6 +53,10 @@ class AuthStore:
         self.clock = clock
         self.lock = threading.RLock()
         self.sessions = {}
+        self.preauth_secret = secrets.token_bytes(32)
+        self.consumed_preauth = {}
+        self.preauth_credit = float(PREAUTH_BURST)
+        self.preauth_refilled = self.clock()
         self.attempts = defaultdict(deque)
         # Initialization never overwrites an existing account, even after restart.
         with (self.directory / 'owner.lock').open('a') as guard:
@@ -89,19 +99,41 @@ class AuthStore:
         now = self.clock()
         self.sessions = {key: value for key, value in self.sessions.items()
                          if value['expires'] > now}
+        self.consumed_preauth = {key: expiry for key, expiry in self.consumed_preauth.items() if expiry > now}
         for key in list(self.attempts):
             queue = self.attempts[key]
             while queue and queue[0] <= now - 60: queue.popleft()
             if not queue: del self.attempts[key]
 
+    def _preauth(self, token):
+        if not isinstance(token, str) or not re.fullmatch(r'p\.[0-9]{1,20}\.[A-Za-z0-9_-]{22}\.[0-9a-f]{64}', token):
+            return None
+        body, signature = token.rsplit('.', 1)
+        if not hmac.compare_digest(signature, hmac.new(self.preauth_secret, body.encode(), hashlib.sha256).hexdigest()):
+            return None
+        issued = int(body.split('.')[1])
+        if not issued <= self.clock() < issued + PREAUTH_TTL or self._key(token) in self.consumed_preauth:
+            return None
+        csrf = hmac.new(self.preauth_secret, b'csrf:' + token.encode(), hashlib.sha256).hexdigest()
+        return {'csrf': csrf, 'authenticated': False, 'remind': False, 'expires': issued + PREAUTH_TTL}
+
     def _new(self, authenticated=False):
         self._prune()
-        if len(self.sessions) >= 512:
+        if not authenticated:
+            now = self.clock()
+            self.preauth_credit = min(PREAUTH_BURST, self.preauth_credit + max(0, now - self.preauth_refilled) * PREAUTH_PER_SECOND)
+            self.preauth_refilled = now
+            if self.preauth_credit < 1:
+                raise AuthError(429, 'Слишком много запросов сессии. Повторите позже.')
+            self.preauth_credit -= 1
+            body = 'p.' + str(int(now)) + '.' + secrets.token_urlsafe(16)
+            token = body + '.' + hmac.new(self.preauth_secret, body.encode(), hashlib.sha256).hexdigest()
+            return token, self._preauth(token)
+        if len(self.sessions) >= AUTH_SESSION_LIMIT:
             raise AuthError(429, 'Слишком много запросов. Повторите позже.')
         token = secrets.token_urlsafe(32)
-        session = {'csrf': secrets.token_urlsafe(32), 'authenticated': authenticated,
-                   'remind': authenticated and self.account['default'],
-                   'expires': self.clock() + (SESSION_TTL if authenticated else PREAUTH_TTL)}
+        session = {'csrf': secrets.token_urlsafe(32), 'authenticated': True,
+                   'remind': self.account['default'], 'expires': self.clock() + SESSION_TTL}
         self.sessions[self._key(token)] = session
         return token, session
 
@@ -111,6 +143,9 @@ class AuthStore:
             session = self.sessions.get(self._key(token)) if isinstance(token, str) and len(token) <= 128 else None
             if session:
                 return token, session.copy()
+            preauth = self._preauth(token)
+            if preauth:
+                return token, preauth
             if create: return self._new()
             return None, None
 
@@ -151,7 +186,12 @@ class AuthStore:
                 correct = verify(password, self.account)
                 if not correct or not hmac.compare_digest(username.encode(), self.account['username'].encode()):
                     raise AuthError(401, 'Неверный логин или пароль.')
-                del self.sessions[self._key(token)]
+                if session['authenticated']:
+                    del self.sessions[self._key(token)]
+                else:
+                    if len(self.sessions) >= AUTH_SESSION_LIMIT or len(self.consumed_preauth) >= CONSUMED_PREAUTH_LIMIT:
+                        raise AuthError(429, 'Слишком много запросов. Повторите позже.')
+                    self.consumed_preauth[self._key(token)] = session['expires']
                 new_token, new_session = self._new(True)
                 return new_token, self.public_session(new_session)
             if operation == 'change':
@@ -170,6 +210,8 @@ class AuthStore:
                 self._save(record)
                 self.account = record
                 self.sessions.clear()
+                self.preauth_secret = secrets.token_bytes(32)
+                self.consumed_preauth.clear()
                 new_token, new_session = self._new(True)
                 return new_token, self.public_session(new_session)
             if operation == 'activity':

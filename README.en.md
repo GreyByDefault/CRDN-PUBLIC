@@ -169,10 +169,10 @@ Once connected, you can proceed to CRDN installation.
 Copy the installation command and run it on the server.
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.16/crdn-bootstrap.sh | sh -s -- install --release v1.0.0-rc.16'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh install --release "$v" < /dev/tty'
 ```
 
-Paste the single line into your SSH session. The bootstrap fetches the complete bundle from the official Release, verifies SHA-256 and runs the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, even when the loader arrives through a pipe. This command explicitly selects v1.0.0-rc.16; production HTTPS is the default, without ACME staging.
+Paste the single line into your SSH session. The command fetches the shell bootstrap and its SHA-256 from GitHub, with same-tag mirror fallback on transport failure, and verifies the exact filename and checksum before execution. The bootstrap then fetches and verifies the complete official bundle and invokes the existing installer. Execution stops on an HTTPS or checksum error. Domain and sudo password input remain interactive through /dev/tty, when the loader runs from a temporary file. This command explicitly selects v1.0.0-rc.16; production HTTPS is the default, without ACME staging.
 
 Once started, the installer:
 
@@ -229,7 +229,7 @@ New versions are published on [GitHub Releases](https://github.com/GreyByDefault
 A separate command is used for updates:
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.16/crdn-bootstrap.sh | sh -s -- update --release v1.0.0-rc.16 --enable-rc-updates'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh update --release "$v" --enable-rc-updates < /dev/tty'
 ```
 
 Run the command from any directory. It currently selects rc.16 explicitly; without `--release v1.0.0-rc.16`, the bootstrap uses only the latest stable release and reports an error if none exists.
@@ -265,7 +265,7 @@ Preliminary versions are installed separately, at the user's explicit choice.
 A separate command is provided to remove the application:
 
 ```sh
-bash -o pipefail -c 'curl --silent --show-error --fail --location --proto =https --proto-redir =https https://neuroflo.ru/crdn-files/releases/v1.0.0-rc.16/crdn-bootstrap.sh | sh -s -- uninstall --release v1.0.0-rc.16'
+bash -c 'set -eu; d=$(mktemp -d); trap "rm -rf -- \"$d\"" EXIT; cd "$d"; v=v1.0.0-rc.16; f() { curl --silent --show-error --fail --location --connect-timeout 4 --max-time 10 --max-filesize "${3:-262144}" --proto =https --proto-redir =https -o "$2" "$1/$2"; }; pair() { f "$1" crdn-bootstrap.sh && f "$1" crdn-bootstrap.sh.sha256 1024; }; if ! pair "https://github.com/GreyByDefault/CRDN-PUBLIC/releases/download/$v"; then pair "https://neuroflo.ru/crdn-files/releases/$v"; fi; [[ "$(cat crdn-bootstrap.sh.sha256)" =~ ^[0-9a-f]{64}"  crdn-bootstrap.sh"$ ]]; sha256sum --status -c crdn-bootstrap.sh.sha256; sh ./crdn-bootstrap.sh uninstall --release "$v" < /dev/tty'
 ```
 
 Run the command from any directory. The release number selects the verified removal tools, not the version of the installation to be removed.
