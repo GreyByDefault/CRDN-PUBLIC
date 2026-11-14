@@ -71,12 +71,24 @@ def channel():
 
 def latest():
     rc = channel() == 'rc'
+    if bootstrap.private_token():
+        data = json.loads(bootstrap.private_fetch(bootstrap.PRIVATE_API.rstrip('/') + '?per_page=100'))
+    else:
+        return public_latest(rc)
+    return select_latest(data, rc)
+
+
+def public_latest(rc):
     try:
         data = json.loads(bootstrap.fetch(bootstrap.API.rstrip('/') + ('?per_page=100' if rc else '/latest')))
     except (OSError, TimeoutError):
         data = json.loads(bootstrap.fetch(bootstrap.MIRROR + '/stable.json'))
         if rc:
             data = [data, json.loads(bootstrap.fetch(bootstrap.MIRROR + '/prerelease.json'))]
+    return select_latest(data, rc)
+
+
+def select_latest(data, rc):
     rows = data if isinstance(data, list) else [data]
     allowed = []
     for item in rows:
@@ -95,6 +107,9 @@ def latest():
 
 def release_notes(tag):
     # Optional metadata cannot affect version/channel choice or download URLs.
+    if bootstrap.private_token():
+        try: return bootstrap.parse_release_notes(tag, bootstrap.private_metadata(tag).get('body'))
+        except (OSError, ValueError): return None
     for url in (bootstrap.API + 'tags/' + tag, bootstrap.MIRROR + '/releases/' + tag + '/release.json'):
         try:
             data = json.loads(bootstrap.fetch(url))
@@ -204,6 +219,7 @@ def worker():
             with tempfile.TemporaryDirectory(prefix='crdn-web-tools-') as folder:
                 os.chmod(folder, 0o700)
                 tools = bootstrap.unpack(raw, checksum, tag, folder)
+                bootstrap.require_installation_compatibility(tools)
                 stage('server')
                 command = [sys.executable, str(tools / 'ops/lifecycle.py'), 'update', '--release', tag]
                 with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as child:

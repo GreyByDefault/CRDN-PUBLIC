@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import stat
 from pathlib import Path
 import re
 import subprocess
@@ -23,6 +24,8 @@ BUNDLE_FILES = ('install.sh', 'update.sh', 'uninstall.sh', 'ops/lifecycle.py',
                 'ops/package.py', 'ops/build_release.py', 'README.md', 'README.en.md',
                 'LICENSE', 'ops/web_update.py', 'bootstrap.py', 'docs/dashboard.png', 'bootstrap.sh')
 LIMIT = 8 * 1024 * 1024
+PRIVATE_CONFIG = Path('/etc/crdn-private-release.json')
+PRIVATE_API = 'https://api.github.com/repos/GreyByDefault/CRDN/releases/'
 
 
 class HTTPSOnly(HTTPRedirectHandler):
@@ -43,9 +46,70 @@ def fetch(url):
     return data
 
 
+def private_token():
+    """Administrator-only source selection; never copied into runtime or IPC."""
+    try:
+        fd = os.open(PRIVATE_CONFIG, os.O_RDONLY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return None
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077:
+            raise ValueError('Private release credentials require a root-owned 0600 regular file')
+        data = stream.read(4097)
+    value = json.loads(data)
+    if len(data) > 4096 or set(value) != {'token'} or not isinstance(value['token'], str) or not re.fullmatch(r'[A-Za-z0-9_]{20,256}', value['token']):
+        raise ValueError('Invalid private release credentials')
+    return value['token']
+
+
+class PrivateRedirect(HTTPSOnly):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        host = urlsplit(newurl).hostname
+        if host not in ('api.github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'):
+            raise ValueError('Private release redirect refused')
+        result = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if host != 'api.github.com':
+            result.remove_header('Authorization')
+        return result
+
+
+def private_fetch(url, binary=False):
+    if not (url.startswith(PRIVATE_API) or url.startswith(PRIVATE_API.rstrip('/') + '?')) or urlsplit(url).hostname != 'api.github.com':
+        raise ValueError('Private release URL refused')
+    token = private_token()
+    if not token:
+        raise ValueError('Private source not configured')
+    headers = {'User-Agent': 'CRDN-private-updater', 'Authorization': 'Bearer ' + token,
+               'Accept': 'application/octet-stream' if binary else 'application/vnd.github+json'}
+    try:
+        with build_opener(HTTPSHandler(), PrivateRedirect()).open(Request(url, headers=headers), timeout=8) as response:
+            data = response.read(LIMIT + 1)
+        if len(data) > LIMIT:
+            raise ValueError('Private release file exceeds limit')
+        return data
+    except (OSError, ValueError):
+        # Never propagate signed download URLs or request details into CLI/logs.
+        raise ValueError('Private GitHub release request failed') from None
+
+
+def private_metadata(tag):
+    if not isinstance(tag, str) or not re.fullmatch(VERSION, tag):
+        raise ValueError('Invalid private release tag')
+    value = json.loads(private_fetch(PRIVATE_API + 'tags/' + tag))
+    if not isinstance(value, dict) or value.get('tag_name') != tag or value.get('draft') or value.get('prerelease') != ('-rc.' in tag):
+        raise ValueError('Private release metadata differs')
+    return value
+
+
 def release_tag(selected):
     if selected and not re.fullmatch(VERSION, selected):
         raise ValueError('Expected an exact stable or rc.N release tag')
+    if private_token():
+        if not selected:
+            raise ValueError('Private installation requires an exact --release')
+        private_metadata(selected)
+        return selected, PRIVATE_API, PRIVATE_API
     try:
         metadata = json.loads(fetch(API + ('tags/' + selected if selected else 'latest')))
     except (URLError, OSError, TimeoutError):
@@ -69,6 +133,20 @@ def release_tag(selected):
 
 def release_pair(tag, name, fetcher=None):
     """Only transport/missing-file failures switch source; integrity never does."""
+    if private_token():
+        metadata = private_metadata(tag)
+        assets = {item['name']: item for item in metadata['assets']}
+        content = []
+        for filename in (name, name + '.sha256'):
+            item = assets.get(filename)
+            if not item or not isinstance(item.get('id'), int) or item['id'] <= 0:
+                raise ValueError('Private release asset missing')
+            content.append(private_fetch(PRIVATE_API + 'assets/' + str(item['id']), binary=True))
+        raw, checksum = content
+        expected = re.fullmatch(r'([0-9a-f]{64})  ' + re.escape(name) + r'\n?', checksum.decode('ascii'))
+        if not expected or hashlib.sha256(raw).hexdigest() != expected[1]:
+            raise ValueError('Private asset SHA-256 differs')
+        return raw, checksum
     fetcher = fetcher or fetch
     primary = REPOSITORY + '/releases/download/' + tag + '/'
     mirror = MIRROR + '/releases/' + tag + '/'
@@ -110,6 +188,14 @@ def unpack(raw, checksum, tag, destination):
     return Path(destination) / ('crdn-' + tag)
 
 
+def require_installation_compatibility(tools, state_path=Path('/etc/crdn-managed/installation.json')):
+    """Never service a new host mode with historical, unaware lifecycle code."""
+    if state_path.exists():
+        state = json.loads(state_path.read_text())
+        if state.get('host_schema') and b'HOST_SCHEMA = 1' not in (Path(tools) / 'ops/lifecycle.py').read_bytes():
+            raise ValueError('Этот комплект не поддерживает режим установленного CRDN; выберите совместимый выпуск.')
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=('install', 'update', 'uninstall'))
@@ -130,6 +216,7 @@ def main(argv=None):
     with tempfile.TemporaryDirectory(prefix='crdn-tools-') as directory:
         os.chmod(directory, 0o700)
         root = unpack(raw, checksum, tag, directory)
+        require_installation_compatibility(root)
         command = [sys.executable, str(root / 'ops/lifecycle.py'), args.operation]
         if args.operation != 'uninstall':
             # Pin the runtime to the release whose complete tool bundle was verified.

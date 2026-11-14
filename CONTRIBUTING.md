@@ -11,8 +11,9 @@ the development workflow.
 - Keep [Russian documentation](README.md) and [English documentation](README.en.md)
   aligned, clearly separating implemented features from future tooling.
 
-The universal installer, update, removal and access recovery tools are planned
-for v1.0.0 and are not included in the v0.1.0 pre-release.
+Stable v1.0.1 includes the universal install, update and removal tools.
+Supported host layouts and verification limits are described in both READMEs.
+Password recovery is not implemented.
 
 Source code and releases: [CRDN-PUBLIC](https://github.com/GreyByDefault/CRDN-PUBLIC).
 License: [MIT](LICENSE).
