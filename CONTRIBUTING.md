@@ -11,7 +11,7 @@ the development workflow.
 - Keep [Russian documentation](README.md) and [English documentation](README.en.md)
   aligned, clearly separating implemented features from future tooling.
 
-Stable v1.0.1 includes the universal install, update and removal tools.
+Stable v1.0.2 includes the universal install, update and removal tools.
 Supported host layouts and verification limits are described in both READMEs.
 Password recovery is not implemented.
 

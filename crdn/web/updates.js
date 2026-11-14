@@ -16,7 +16,9 @@
     failed_rolled_back: 'Обновление не выполнено. Сохранена прежняя версия и данные входа.',
     failed: 'Обновление не подтверждено. Требуется проверка через SSH.'};
   const busy = new Set(['queued', 'download', 'verify', 'server', 'probe', 'activate', 'health']);
-  let state, target, submitted = false, disconnectedAt;
+  let state, target, submitted = false, showingResult = false, disconnectedAt;
+  const releaseVersion = value => typeof value === 'string' && /^v\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?$/.test(value) ? value : null;
+  const currentLabel = value => releaseVersion(value.current) || 'не определена';
   function remembered(value) { try { if (value === undefined) return sessionStorage.getItem('crdn-update-target'); if (value) sessionStorage.setItem('crdn-update-target', value); else sessionStorage.removeItem('crdn-update-target'); } catch {} return null; }
   async function api(path, post = false) {
     const options = {cache: 'no-store', signal: AbortSignal.timeout(5000)};
@@ -34,7 +36,7 @@
     return value;
   }
   function renderNotes(value) {
-    document.querySelector('#update-versions').textContent = 'Установлена: ' + (value.current || 'не определена') + ' → Доступна: ' + target;
+    document.querySelector('#update-versions').textContent = 'Установлена: ' + currentLabel(value) + (releaseVersion(target) ? ' → Доступна: ' + target : '');
     const content = document.querySelector('#release-notes-content');
     content.replaceChildren();
     const notes = value.release_notes;
@@ -61,8 +63,8 @@
   function render(value) {
     diagnostic(value.enabled === false ? 'controller-unavailable' : value.operation?.phase || (value.check_error ? 'source-unavailable' : 'idle'));
     state = value;
-    if (dialog.open && !submitted) renderNotes(value);
-    version.textContent = 'Версия: ' + (value.current || 'не определена');
+    if (dialog.open && !submitted && !showingResult) renderNotes(value);
+    version.textContent = 'Версия: ' + currentLabel(value);
     document.querySelector('#about-version').textContent = version.textContent;
     checkOffer.hidden = !value.available;
     checkOffer.textContent = value.available ? 'Обновить до ' + value.available : 'Обновить';
@@ -77,14 +79,16 @@
     }
     manual.disabled = value.checking;
     const operation = value.operation;
-    if (!operation) return;
+    if (!operation || !releaseVersion(operation.target)) return;
     if (busy.has(operation.phase)) {
       document.querySelector('#release-notes').hidden = true;
       target = operation.target; remembered(target); submitted = true; window.crdnUpdateActive = true;
       title.textContent = 'Обновление CRDN до ' + target;
       progress.textContent = phases[operation.phase]; confirm.disabled = true; cancel.disabled = true;
       if (!dialog.open) dialog.showModal();
-    } else if ((submitted && operation.target === target) || remembered() === operation.target) {
+    } else if ((submitted && operation.target === target) || remembered() === operation.target || (showingResult && dialog.open && operation.target === target)) {
+      target = operation.target; showingResult = true;
+      document.querySelector('#update-versions').textContent = 'Установлена: ' + currentLabel(value);
       document.querySelector('#release-notes').hidden = true;
       if (remembered() === operation.target) { title.textContent = 'Результат обновления CRDN'; if (!dialog.open) dialog.showModal(); remembered(null); }
       window.crdnUpdateActive = false; submitted = false; cancel.disabled = false;
@@ -96,7 +100,7 @@
   offer.addEventListener('click', () => {
     if (submitted || !state?.available) return;
     checkDialog.close();
-    target = state.available; title.textContent = 'Обновить CRDN до ' + target + '?';
+    target = state.available; showingResult = false; title.textContent = 'Обновить CRDN до ' + target + '?';
     progress.textContent = ''; confirm.hidden = false; confirm.disabled = false; cancel.disabled = false; cancel.textContent = 'Отмена'; login.hidden = true;
     document.querySelector('#release-notes').hidden = false;
     renderNotes(state);
